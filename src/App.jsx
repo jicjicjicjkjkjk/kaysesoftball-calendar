@@ -366,16 +366,16 @@ const newEntry = {
         />
       )}
 
-      {showAdmin && (
-        <AdminPanel
-          entries={entries}
-          raffleWinners={raffleWinners}
-          onSetRaffleWinner={handleSetRaffleWinner}
-          onTogglePaid={handleTogglePaid}
-          onDelete={handleDeleteEntry}
-          onEditEntry={handleStartEditEntry}
-        />
-      )}
+     {showAdmin && (
+  <AdminPanel
+    entries={entries}
+    raffleWinners={raffleWinners}
+    onSetRaffleWinner={handleSetRaffleWinner}
+    onQuickUpdateEntry={handleSaveEditedEntry}
+    onDelete={handleDeleteEntry}
+    onEditEntry={handleStartEditEntry}
+  />
+)}
 
       {editingEntry && (
         <EditEntryModal
