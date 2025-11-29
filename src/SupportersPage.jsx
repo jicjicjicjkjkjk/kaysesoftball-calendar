@@ -248,13 +248,13 @@ export default function SupportersPage() {
                       }
                       onClick={() => handleSelectSupporter(row.supporterName)}
                     >
-                      <div className="supporter-name">
-                        {row.supporterName}
-                      </div>
-                      <div className="supporter-sub">
-                        {row.count} date
-                        {row.count !== 1 ? "s" : ""} • Sum of dates: {row.total}
-                      </div>
+                    <div className="supporter-name">
+  {row.supporterName}
+</div>
+<div className="supporter-sub">
+  {row.count} date
+  {row.count !== 1 ? "s" : ""}
+</div>
                     </button>
                   </li>
                 ))}
