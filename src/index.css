@@ -1,3 +1,11 @@
+:root {
+  /* Thunder-ish palette */
+  --thunder-teal: #008e97;
+  --thunder-teal-soft: #e0f6f8;
+  --thunder-yellow: #ffd54f;
+  --thunder-dark: #111111;
+}
+
 *,
 *::before,
 *::after {
@@ -8,7 +16,7 @@ body {
   margin: 0;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
     sans-serif;
-  background: #f5f7fb;
+  background: radial-gradient(circle at top, #fff7e0 0, #f5f7fb 45%, #f5f7fb 100%);
   color: #222;
 }
 
@@ -18,43 +26,103 @@ body {
   padding: 1.5rem 1rem 3rem;
 }
 
+/* ---------- HEADER / HERO ---------- */
+
 .header {
-  text-align: center;
   margin-bottom: 1.5rem;
 }
 
-.header h1 {
-  margin-bottom: 0.5rem;
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1.5fr);
+  gap: 1rem;
+  align-items: center;
+  background: #ffffff;
+  border-radius: 14px;
+  border: 2px solid var(--thunder-teal);
+  padding: 1rem;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
+}
+
+@media (max-width: 800px) {
+  .hero {
+    grid-template-columns: 1fr;
+  }
+}
+
+.hero-left {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.hero-logo-wrap {
+  flex-shrink: 0;
+}
+
+.hero-logo {
+  width: 90px;
+  height: 90px;
+  object-fit: contain;
+}
+
+.hero-text h1 {
+  margin: 0 0 0.35rem;
+  color: var(--thunder-teal);
+}
+
+.hero-text p {
+  margin: 0 0 0.6rem;
+  font-size: 0.95rem;
 }
 
 .venmo-zelle {
-  margin-top: 0.75rem;
+  margin-top: 0.25rem;
+}
+
+.venmo-zelle strong {
+  display: block;
+  margin-bottom: 0.25rem;
 }
 
 .venmo-links a {
   text-decoration: none;
+  color: var(--thunder-teal);
+  font-weight: 600;
 }
 
-.photo-strip {
-  margin-top: 1rem;
-  padding: 0.75rem;
-  background: #ffffff;
-  border-radius: 8px;
-  border: 1px dashed #ccc;
-  font-size: 0.9rem;
+.venmo-links a:hover {
+  text-decoration: underline;
+}
+
+.hero-photo-wrap {
+  text-align: right;
+}
+
+.hero-team-photo {
+  width: 100%;
+  max-height: 260px;
+  object-fit: cover;
+  border-radius: 10px;
+  border: 2px solid var(--thunder-yellow);
 }
 
 .header-buttons {
-  margin-top: 0.75rem;
+  margin-top: 0.6rem;
+  display: flex;
+  justify-content: flex-end;
 }
 
 .admin-toggle {
   padding: 0.4rem 0.9rem;
   border-radius: 999px;
-  border: 1px solid #007b8f;
-  background: #e2f8ff;
+  border: 1px solid var(--thunder-teal);
+  background: var(--thunder-teal-soft);
   cursor: pointer;
+  font-weight: 600;
+  color: var(--thunder-dark);
 }
+
+/* ---------- MAIN CALENDAR SECTION ---------- */
 
 .calendar-section {
   margin-top: 1.5rem;
@@ -87,10 +155,12 @@ body {
   padding: 0.75rem;
   cursor: pointer;
   text-align: left;
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
 }
 
 .month-overview-tile:hover {
-  box-shadow: 0 0 0 2px #0095a8;
+  box-shadow: 0 0 0 2px var(--thunder-teal);
+  transform: translateY(-1px);
 }
 
 .month-overview-header {
@@ -143,11 +213,11 @@ body {
 }
 
 .overview-day-available {
-  background: #e5f7ff;
+  background: var(--thunder-teal-soft);
 }
 
 .overview-day-taken {
-  background: #111111;
+  background: var(--thunder-dark);
   color: #ffffff;
 }
 
@@ -175,11 +245,11 @@ body {
 }
 
 .legend-available {
-  background: #00b3c6;
+  background: var(--thunder-teal);
 }
 
 .legend-taken {
-  background: #111111;
+  background: var(--thunder-dark);
 }
 
 /* ---------- BIG MONTH VIEW ---------- */
@@ -194,7 +264,7 @@ body {
 .back-button {
   border: none;
   background: none;
-  color: #0075a3;
+  color: var(--thunder-teal);
   cursor: pointer;
   font-size: 0.9rem;
   margin-bottom: 0.5rem;
@@ -207,6 +277,7 @@ body {
 .big-month-title {
   text-align: center;
   margin: 0 0 0.5rem;
+  color: var(--thunder-teal);
 }
 
 .big-weekdays {
@@ -256,11 +327,11 @@ body {
 }
 
 .big-day-available {
-  background: #e5f7ff;
+  background: var(--thunder-teal-soft);
 }
 
 .big-day-available:hover {
-  background: #cdeeff;
+  background: #cdeff2;
 }
 
 .big-day-taken {
@@ -289,6 +360,7 @@ body {
 
 .modal h2 {
   margin-top: 0;
+  color: var(--thunder-teal);
 }
 
 .modal-text {
@@ -338,6 +410,10 @@ body {
   border: 1px solid #ddd;
 }
 
+.admin-panel h2 {
+  color: var(--thunder-teal);
+}
+
 .admin-filters {
   display: flex;
   align-items: center;
@@ -356,9 +432,9 @@ body {
 }
 
 .filter-button.active {
-  background: #00b3c6;
+  background: var(--thunder-teal);
   color: #ffffff;
-  border-color: #00b3c6;
+  border-color: var(--thunder-teal);
 }
 
 .admin-table-wrapper {
