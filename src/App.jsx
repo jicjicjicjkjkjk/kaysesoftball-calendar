@@ -2,8 +2,18 @@ import React, { useState, useEffect } from "react";
 import { PLAYERS } from "./players";
 
 const MONTH_NAMES = [
-  "January","February","March","April","May","June",
-  "July","August","September","October","November","December"
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
 ];
 
 const CURRENT_YEAR = new Date().getFullYear();
@@ -26,6 +36,7 @@ export default function App() {
   const [selectedDay, setSelectedDay] = useState(null); // {year,month,day}
   const [showForm, setShowForm] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
+  const [selectedMonthIndex, setSelectedMonthIndex] = useState(null); // null = overview
 
   // Load from localStorage on first render
   useEffect(() => {
@@ -87,6 +98,14 @@ export default function App() {
     setEntries((prev) => prev.filter((e) => e.id !== id));
   };
 
+  const handleSelectMonth = (idx) => {
+    setSelectedMonthIndex(idx);
+  };
+
+  const handleBackToOverview = () => {
+    setSelectedMonthIndex(null);
+  };
+
   return (
     <div className="page">
       <header className="header">
@@ -114,26 +133,42 @@ export default function App() {
           <p>Add fun team/player photos here.</p>
         </div>
 
-        <button
-          className="admin-toggle"
-          onClick={() => setShowAdmin((prev) => !prev)}
-        >
-          {showAdmin ? "Hide Admin View" : "Show Admin View (Paid Tracking)"}
-        </button>
+        <div className="header-buttons">
+          <button
+            className="admin-toggle"
+            onClick={() => setShowAdmin((prev) => !prev)}
+          >
+            {showAdmin ? "Hide Admin View" : "Show Admin View (Paid Tracking)"}
+          </button>
+        </div>
       </header>
 
-      {/* 12-month grid */}
-      <section className="calendar-grid">
-        {MONTH_NAMES.map((name, idx) => (
-          <MonthCalendar
-            key={name}
+      {/* MAIN CALENDAR AREA */}
+      <section className="calendar-section">
+        {selectedMonthIndex === null ? (
+          <MonthOverviewGrid
             year={CURRENT_YEAR}
-            monthIndex={idx}
-            monthName={name}
             entries={entries}
-            onDayClick={handleOpenDay}
+            onSelectMonth={handleSelectMonth}
           />
-        ))}
+        ) : (
+          <div className="big-month-wrapper">
+            <button
+              className="back-button"
+              type="button"
+              onClick={handleBackToOverview}
+            >
+              ← Back to all months
+            </button>
+            <BigMonthCalendar
+              year={CURRENT_YEAR}
+              monthIndex={selectedMonthIndex}
+              monthName={MONTH_NAMES[selectedMonthIndex]}
+              entries={entries}
+              onDayClick={handleOpenDay}
+            />
+          </div>
+        )}
       </section>
 
       {showForm && selectedDay && (
@@ -159,7 +194,67 @@ export default function App() {
   );
 }
 
-function MonthCalendar({ year, monthIndex, monthName, entries, onDayClick }) {
+/* ---------- PUBLIC VIEW COMPONENTS ---------- */
+
+// Small month “summary” tiles
+function MonthOverviewGrid({ year, entries, onSelectMonth }) {
+  return (
+    <div className="calendar-overview-grid">
+      {MONTH_NAMES.map((name, idx) => (
+        <MonthOverviewTile
+          key={name}
+          year={year}
+          monthIndex={idx}
+          monthName={name}
+          entries={entries}
+          onClick={() => onSelectMonth(idx)}
+        />
+      ))}
+    </div>
+  );
+}
+
+function MonthOverviewTile({ year, monthIndex, monthName, entries, onClick }) {
+  const days = buildDaysForMonth(year, monthIndex);
+
+  // build quick lookup
+  const takenSet = new Set(
+    entries
+      .filter(
+        (e) => e.year === year && e.month === monthIndex + 1 && !!e.playerId
+      )
+      .map((e) => e.day)
+  );
+
+  return (
+    <button type="button" className="month-overview-tile" onClick={onClick}>
+      <div className="month-overview-header">
+        <span className="month-name">{monthName}</span>
+        <span className="month-overview-caption">Tap to view</span>
+      </div>
+      <div className="overview-day-grid">
+        {days.map((d) => {
+          const isTaken = takenSet.has(d.day);
+          const className = `overview-day ${
+            isTaken ? "overview-day-taken" : "overview-day-available"
+          }`;
+          return <div key={d.day} className={className} />;
+        })}
+      </div>
+      <div className="overview-legend">
+        <span className="legend-item">
+          <span className="legend-swatch legend-available" /> Available
+        </span>
+        <span className="legend-item">
+          <span className="legend-swatch legend-taken" /> Taken
+        </span>
+      </div>
+    </button>
+  );
+}
+
+// Big full calendar for one month
+function BigMonthCalendar({ year, monthIndex, monthName, entries, onDayClick }) {
   const allDays = buildDaysForMonth(year, monthIndex);
 
   const daysWithEntries = allDays.map((d) => {
@@ -170,11 +265,11 @@ function MonthCalendar({ year, monthIndex, monthName, entries, onDayClick }) {
   });
 
   return (
-    <div className="month-card">
-      <h3 className="month-title">{monthName}</h3>
-      <div className="day-grid">
+    <div className="big-month-card">
+      <h2 className="big-month-title">{monthName}</h2>
+      <div className="big-day-grid">
         {daysWithEntries.map(({ day, entry }) => (
-          <DayCell
+          <BigDayCell
             key={day}
             year={year}
             monthIndex={monthIndex}
@@ -188,7 +283,7 @@ function MonthCalendar({ year, monthIndex, monthName, entries, onDayClick }) {
   );
 }
 
-function DayCell({ year, monthIndex, day, entry, onClick }) {
+function BigDayCell({ year, monthIndex, day, entry, onClick }) {
   const isTaken = !!entry;
   const player = isTaken && PLAYERS.find((p) => p.id === entry.playerId);
   const playerName = player ? player.firstName : "Player";
@@ -197,7 +292,9 @@ function DayCell({ year, monthIndex, day, entry, onClick }) {
     ? `${day}: ${playerName} – ${entry.supporterName}`
     : `${day}: Available`;
 
-  const className = `day-cell ${isTaken ? "day-taken" : "day-available"}`;
+  const className = `big-day-cell ${
+    isTaken ? "big-day-taken" : "big-day-available"
+  }`;
 
   return (
     <button
@@ -213,6 +310,8 @@ function DayCell({ year, monthIndex, day, entry, onClick }) {
     </button>
   );
 }
+
+/* ---------- MODAL FORM ---------- */
 
 function SupporterFormModal({ dayInfo, onClose, onSubmit }) {
   const [playerId, setPlayerId] = useState("");
@@ -299,74 +398,13 @@ function SupporterFormModal({ dayInfo, onClose, onSubmit }) {
   );
 }
 
+/* ---------- ADMIN PANEL ---------- */
+
 function AdminPanel({ entries, onTogglePaid, onDelete }) {
+  const [filter, setFilter] = useState("all"); // all | paid | unpaid
+
+  // sort by date
   const sorted = [...entries].sort((a, b) => {
     const da = new Date(a.year, a.month - 1, a.day);
     const db = new Date(b.year, b.month - 1, b.day);
-    return da - db;
-  });
-
-  return (
-    <section className="admin-panel">
-      <h2>Admin View – Sponsors & Paid Status</h2>
-      {sorted.length === 0 ? (
-        <p>No days claimed yet.</p>
-      ) : (
-        <div className="admin-table-wrapper">
-          <table className="admin-table">
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Player</th>
-                <th>Supporter</th>
-                <th>Note</th>
-                <th>Phone (private)</th>
-                <th>Paid?</th>
-                <th>Clear</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sorted.map((e) => {
-                const player = PLAYERS.find((p) => p.id === e.playerId);
-                const playerName = player
-                  ? `${player.firstName} ${player.lastName}`
-                  : "Unknown";
-                return (
-                  <tr key={e.id}>
-                    <td>
-                      {MONTH_NAMES[e.month - 1]} {e.day}, {e.year}
-                    </td>
-                    <td>{playerName}</td>
-                    <td>{e.supporterName}</td>
-                    <td>{e.note}</td>
-                    <td>{e.phone}</td>
-                    <td>
-                      <input
-                        type="checkbox"
-                        checked={e.paid}
-                        onChange={() => onTogglePaid(e.id)}
-                      />
-                    </td>
-                    <td>
-                      <button
-                        type="button"
-                        className="link-button"
-                        onClick={() => onDelete(e.id)}
-                      >
-                        Clear
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-      <p className="admin-note">
-        This admin view and the Paid? column are visible only to you. On the
-        public calendar we show just player + supporter names.
-      </p>
-    </section>
-  );
-}
+    return da - db
