@@ -141,29 +141,47 @@ export default function App() {
 
   return (
     <div className="page">
-      <header className="header">
-        <h1>Thunder 12U Calendar Fundraiser</h1>
-        <p>
-          Pick a date to sponsor your favorite player. Once a day is claimed,
-          we’ll show the player and supporter name on that date.
-        </p>
-        <div className="venmo-zelle">
-          <strong>Step 2: Pay after you claim your day</strong>
-          <div className="venmo-links">
-            {/* Put your real links/handles here */}
-            <a href="https://venmo.com" target="_blank" rel="noreferrer">
-              Venmo @YourHandle
-            </a>
-            <span> · </span>
-            <a href="mailto:yourzelleemail@example.com">
-              Zelle: yourzelleemail@example.com
-            </a>
-          </div>
-        </div>
+            <header className="header">
+        <div className="hero">
+          <div className="hero-left">
+            <div className="hero-logo-wrap">
+              <img
+                src="/thunder-logo.jpg"
+                alt="Arlington Heights Thunder Fastpitch"
+                className="hero-logo"
+              />
+            </div>
+            <div className="hero-text">
+              <h1>Thunder 12U Teal Calendar Fundraiser</h1>
+              <p>
+                Support Arlington Heights Thunder Fastpitch by picking a date
+                and sponsoring your favorite player. Claimed days show the
+                player and supporter right on the calendar.
+              </p>
 
-        {/* Fun photos – later we can wire to PLAYERS.photoUrl */}
-        <div className="photo-strip">
-          <p>Add fun team/player photos here.</p>
+              <div className="venmo-zelle">
+                <strong>Step 2: Pay after you claim your day</strong>
+                <div className="venmo-links">
+                  {/* Put your real links/handles here */}
+                  <a href="https://venmo.com" target="_blank" rel="noreferrer">
+                    Venmo @YourHandle
+                  </a>
+                  <span> · </span>
+                  <a href="mailto:yourzelleemail@example.com">
+                    Zelle: yourzelleemail@example.com
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="hero-photo-wrap">
+            <img
+              src="/team-12u-teal.jpg"
+              alt="Thunder 12U Teal team"
+              className="hero-team-photo"
+            />
+          </div>
         </div>
 
         <div className="header-buttons">
