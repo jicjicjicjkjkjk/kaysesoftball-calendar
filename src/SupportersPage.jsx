@@ -48,10 +48,6 @@ export default function SupportersPage() {
     setSelectedSupporter(null);
   };
 
-  const handleSelectSupporter = (name) => {
-    setSelectedSupporter(name);
-  };
-
   // Entries for selected player
   const entriesForPlayer = useMemo(() => {
     if (!selectedPlayerId) return [];
@@ -82,6 +78,50 @@ export default function SupportersPage() {
     rows.sort((a, b) => a.supporterName.localeCompare(b.supporterName));
     return rows;
   }, [entriesForPlayer]);
+
+  const handleSelectSupporter = (supporterName) => {
+    if (!selectedPlayerId) return;
+
+    const relevant = entriesForPlayer.filter(
+      (e) => (e.supporterName || "").trim() === supporterName.trim()
+    );
+    if (relevant.length === 0) {
+      alert("No entries found for this supporter.");
+      return;
+    }
+
+    const phoneInput = window.prompt(
+      "To view details for this supporter, please enter the cell phone number used when purchasing dates (you can enter the full number or just the last 4 digits)."
+    );
+
+    if (phoneInput === null) {
+      // cancelled
+      return;
+    }
+
+    const cleanedInput = phoneInput.replace(/\D/g, "");
+    if (!cleanedInput) {
+      alert("Phone number cannot be blank.");
+      return;
+    }
+
+    const hasMatch = relevant.some((e) => {
+      const stored = (e.phone || "").replace(/\D/g, "");
+      if (!stored) return false;
+      return (
+        stored === cleanedInput || stored.endsWith(cleanedInput) // allow last 4
+      );
+    });
+
+    if (!hasMatch) {
+      alert(
+        "Sorry, that phone number does not match what we have on file for this supporter."
+      );
+      return;
+    }
+
+    setSelectedSupporter(supporterName);
+  };
 
   // Entries for selected supporter + player
   const supporterDetails = useMemo(() => {
@@ -135,7 +175,9 @@ export default function SupportersPage() {
             <h1>Thunder Supporters</h1>
             <p>
               Explore which supporters have purchased dates in honor of each
-              Thunder 12U Teal player.
+              Thunder 12U Teal player. To view detailed dates and totals for a
+              supporter, you&apos;ll need the cell phone number used when the
+              dates were purchased.
             </p>
           </div>
         </div>
@@ -226,8 +268,8 @@ export default function SupportersPage() {
 
             {!selectedSupporter && (
               <p className="supporters-hint">
-                Click a supporter in the middle column to view their dates and
-                totals.
+                Click a supporter in the middle column and enter their phone
+                number to view their dates and totals.
               </p>
             )}
 
