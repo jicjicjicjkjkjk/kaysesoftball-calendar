@@ -485,3 +485,20 @@ body {
   font-size: 0.8rem;
   color: #666;
 }
+
+/* Raffle highlight styles */
+.overview-day-raffle {
+  box-shadow: 0 0 0 2px var(--thunder-yellow);
+}
+
+.big-day-raffle {
+  box-shadow: 0 0 0 3px var(--thunder-yellow);
+  position: relative;
+}
+
+.big-day-raffle-tag {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  font-size: 0.9rem;
+}
