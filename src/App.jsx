@@ -562,12 +562,12 @@ function DatePromptModal({ dayInfo, onCancel, onClaim }) {
         <h2>
           Claim {monthName} {dayInfo.day}?
         </h2>
-        <p className="modal-text">
-  You&apos;re about to claim this date as a{" "}
-  <strong>supporter</strong>. This date&apos;s number becomes your
-  raffle tickets for the month&apos;s $100 drawing. You&apos;ll also
-  choose which player you&apos;re supporting so our team knows who to
-  thank – it doesn&apos;t change your odds.
+  <p className="modal-text">
+  You are the <strong>supporter</strong> purchasing this date and the
+  raffle tickets that come with it. Choosing a player simply tells us
+  who you&apos;re supporting so coaches and players know who to thank –
+  it doesn&apos;t change your raffle chances. Your phone is only used
+  for payment questions and prize notification.
 </p>
         
         <div className="modal-buttons">
