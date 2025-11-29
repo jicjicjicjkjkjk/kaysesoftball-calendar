@@ -51,7 +51,9 @@ export default function App() {
   const [viewedEntry, setViewedEntry] = useState(null);
   const [showEntryDetails, setShowEntryDetails] = useState(false);
   const [editingEntry, setEditingEntry] = useState(null);
-
+  const [hasAdminAccess, setHasAdminAccess] = useState(false);
+  const [showAdminPrompt, setShowAdminPrompt] = useState(false);
+  
   // Load from localStorage on first render
   useEffect(() => {
     try {
