@@ -126,18 +126,22 @@ export default function App() {
   const handleSubmitEntry = (formValues) => {
     if (!selectedDay) return;
 
-    const newEntry = {
-      id: makeId(),
-      year: selectedDay.year,
-      month: selectedDay.month,
-      day: selectedDay.day,
-      playerId: formValues.playerId,
-      supporterName: formValues.supporterName,
-      note: formValues.note || "",
-      phone: formValues.phone || "",
-      paid: false,
-      createdAt: new Date().toISOString(),
-    };
+const newEntry = {
+  id: makeId(),
+  year: selectedDay.year,
+  month: selectedDay.month,
+  day: selectedDay.day,
+  playerId: formValues.playerId,
+  supporterName: formValues.supporterName,
+  note: formValues.note || "",
+  phone: formValues.phone || "",
+  // payment fields
+  paymentMethod: "unpaid", // "unpaid" | "zelle" | "venmo"
+  paymentAmount: 0,        // dollars applied to THIS date
+  paid: false,             // keep for compatibility
+  createdAt: new Date().toISOString(),
+};
+    
 
     setEntries((prev) => [...prev, newEntry]);
     setLastSupporterValues(formValues);
