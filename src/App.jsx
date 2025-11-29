@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import { PLAYERS } from "./players";
 
 const MONTH_NAMES = [
@@ -19,6 +20,7 @@ const MONTH_NAMES = [
 const WEEKDAY_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 const CURRENT_YEAR = new Date().getFullYear();
+
 const STORAGE_KEY = "kaysesoftball_calendar_entries_v1";
 const RAFFLE_KEY = "kaysesoftball_calendar_raffle_v1";
 
@@ -48,6 +50,7 @@ const raffleKey = (year, month) => `${year}-${month}`;
 export default function App() {
   const [entries, setEntries] = useState([]);
   const [selectedDay, setSelectedDay] = useState(null); // {year,month,day}
+  const [showDatePrompt, setShowDatePrompt] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
   const [selectedMonthIndex, setSelectedMonthIndex] = useState(null); // null = overview
@@ -56,6 +59,12 @@ export default function App() {
   const [editingEntry, setEditingEntry] = useState(null);
   const [hasAdminAccess, setHasAdminAccess] = useState(false);
   const [raffleWinners, setRaffleWinners] = useState({}); // { "2025-4": 7 }
+  const [lastSupporterValues, setLastSupporterValues] = useState({
+    supporterName: "",
+    playerId: "",
+    note: "",
+    phone: "",
+  });
 
   // Load from localStorage on first render
   useEffect(() => {
@@ -78,7 +87,7 @@ export default function App() {
     }
   }, []);
 
-  // Save entries when they change
+  // Save entries whenever they change
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
@@ -87,7 +96,7 @@ export default function App() {
     }
   }, [entries]);
 
-  // Save raffle winners when they change
+  // Save raffle winners whenever they change
   useEffect(() => {
     try {
       localStorage.setItem(RAFFLE_KEY, JSON.stringify(raffleWinners));
@@ -95,11 +104,6 @@ export default function App() {
       console.error("Failed to save raffle winners", err);
     }
   }, [raffleWinners]);
-
-  const handleOpenDay = (year, month, day) => {
-    setSelectedDay({ year, month, day });
-    setShowForm(true);
-  };
 
   const handleDayClick = (year, month, day) => {
     const existing = entries.find(
@@ -109,12 +113,19 @@ export default function App() {
       setViewedEntry(existing);
       setShowEntryDetails(true);
     } else {
-      handleOpenDay(year, month, day);
+      setSelectedDay({ year, month, day });
+      setShowDatePrompt(true);
     }
+  };
+
+  const handleOpenFormForSelectedDay = () => {
+    setShowDatePrompt(false);
+    setShowForm(true);
   };
 
   const handleSubmitEntry = (formValues) => {
     if (!selectedDay) return;
+
     const newEntry = {
       id: makeId(),
       year: selectedDay.year,
@@ -124,10 +135,12 @@ export default function App() {
       supporterName: formValues.supporterName,
       note: formValues.note || "",
       phone: formValues.phone || "",
-      paid: false, // you flip this in admin view
+      paid: false,
       createdAt: new Date().toISOString(),
     };
+
     setEntries((prev) => [...prev, newEntry]);
+    setLastSupporterValues(formValues);
     setShowForm(false);
     setSelectedDay(null);
   };
@@ -203,22 +216,29 @@ export default function App() {
             <div className="hero-text">
               <h1>Thunder 12U Teal Calendar Fundraiser</h1>
               <p>
-                Support Arlington Heights Thunder Fastpitch by picking a date
-                and sponsoring your favorite player. Claimed days show the
-                player and supporter right on the calendar.
+                Support Thunder 12U Teal by purchasing calendar dates as a{" "}
+                <strong>supporter</strong> in honor of a player. Your dates
+                count as raffle entries for monthly cash drawings.
               </p>
 
               <div className="venmo-zelle">
-                <strong>Step 2: Pay after you claim your day</strong>
+                <strong>Step 2: Pay after you claim your date(s)</strong>
                 <div className="venmo-links">
-                  {/* Put your real links/handles here */}
-                  <a href="https://venmo.com" target="_blank" rel="noreferrer">
-                    Venmo @YourHandle
-                  </a>
+                  <span>
+                    Venmo:{" "}
+                    <a
+                      href="https://venmo.com/u/Justin-Kayse"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      @Justin-Kayse
+                    </a>
+                  </span>
                   <span> · </span>
-                  <a href="mailto:yourzelleemail@example.com">
-                    Zelle: yourzelleemail@example.com
-                  </a>
+                  <span>
+                    Zelle: <strong>630-698-8769</strong>
+                  </span>
+                  <span> (last 4: 8769)</span>
                 </div>
               </div>
             </div>
@@ -233,12 +253,43 @@ export default function App() {
           </div>
         </div>
 
-        <div className="header-buttons">
-          <button className="admin-toggle" onClick={handleAdminToggleClick}>
-            {showAdmin ? "Hide Admin View" : "Show Admin View (Paid Tracking)"}
-          </button>
+        <div className="header-bottom-row">
+          <div className="header-links">
+            <Link to="/supporters" className="nav-link">
+              View Supporters
+            </Link>
+          </div>
+          <div className="header-buttons">
+            <button className="admin-toggle" onClick={handleAdminToggleClick}>
+              {showAdmin ? "Hide Admin View" : "Show Admin View (Paid Tracking)"}
+            </button>
+          </div>
         </div>
       </header>
+
+      {/* HOW IT WORKS SECTION */}
+      <section className="how-it-works">
+        <h2>How the Thunder Calendar Fundraiser Works</h2>
+        <p>
+          Each <strong>supporter</strong> chooses one or more available dates
+          on the calendar. The number on the date is the number of{" "}
+          <strong>raffle tickets</strong> you receive for that month’s drawing.
+        </p>
+        <p>
+          For example, if you claim <strong>January 12</strong>, you get{" "}
+          <strong>12 raffle tickets</strong> for the January drawing.
+        </p>
+        <p>
+          At the end of each month, we put all tickets into a drawing and{" "}
+          <strong>pull one winner for $100</strong>. We’ll record the drawing as
+          a team and upload the video to this site.
+        </p>
+        <p>
+          Your support helps fund professional coaches, quality indoor training
+          space, and extra tournaments and games for Thunder 12U Teal. Thank you
+          for investing in our players!
+        </p>
+      </section>
 
       {/* MAIN CALENDAR AREA */}
       <section className="calendar-section">
@@ -270,10 +321,25 @@ export default function App() {
         )}
       </section>
 
+      {/* MODALS */}
+      {showDatePrompt && selectedDay && (
+        <DatePromptModal
+          dayInfo={selectedDay}
+          onCancel={() => {
+            setShowDatePrompt(false);
+            setSelectedDay(null);
+          }}
+          onClaim={handleOpenFormForSelectedDay}
+        />
+      )}
+
       {showForm && selectedDay && (
         <SupporterFormModal
           dayInfo={selectedDay}
-          onClose={() => setShowForm(false)}
+          initialValues={lastSupporterValues}
+          onClose={() => {
+            setShowForm(false);
+          }}
           onSubmit={handleSubmitEntry}
         />
       )}
@@ -305,6 +371,10 @@ export default function App() {
       )}
 
       <footer className="footer">
+        <div className="footer-contact">
+          <strong>Questions?</strong>{" "}
+          <a href="mailto:jkayse@hotmail.com">Email Coach Justin</a>
+        </div>
         <small>© {CURRENT_YEAR} Kayse Softball • kaysesoftball.com</small>
       </footer>
     </div>
@@ -313,7 +383,6 @@ export default function App() {
 
 /* ---------- PUBLIC VIEW COMPONENTS ---------- */
 
-// Small month “summary” tiles (3 x 4 grid)
 function MonthOverviewGrid({ year, entries, raffleWinners, onSelectMonth }) {
   return (
     <div className="calendar-overview-grid">
@@ -342,7 +411,6 @@ function MonthOverviewTile({
 }) {
   const cells = buildCalendarCells(year, monthIndex);
 
-  // quick lookup of taken days
   const takenSet = new Set(
     entries
       .filter(
@@ -399,7 +467,6 @@ function MonthOverviewTile({
   );
 }
 
-// Big full calendar for one month
 function BigMonthCalendar({
   year,
   monthIndex,
@@ -433,10 +500,11 @@ function BigMonthCalendar({
               e.day === cell.day
           );
           const isTaken = !!entry;
-          const player = isTaken && PLAYERS.find((p) => p.id === entry.playerId);
-          const playerName = player ? player.firstName : "Player";
 
-          const label = isTaken ? `${cell.day}: ${playerName}` : `${cell.day}`;
+          const player = isTaken && PLAYERS.find((p) => p.id === entry.playerId);
+          const playerFirst = player ? player.firstName : "";
+          const supporterName = isTaken ? entry.supporterName || "" : "";
+
           const isRaffle = raffleDay === cell.day;
 
           const className = [
@@ -454,13 +522,17 @@ function BigMonthCalendar({
               className={className}
               onClick={() => onDayClick(year, monthIndex + 1, cell.day)}
             >
-              <span className="big-day-label">{label}</span>
+              <div className="big-day-top-row">
+                <span className="big-day-daynumber">{cell.day}</span>
+                {isRaffle && <span className="big-day-raffle-tag">🎟</span>}
+              </div>
+
               {isTaken && (
-                <span className="big-day-supporter">
-                  {entry.supporterName}
-                </span>
+                <>
+                  <div className="big-day-supporter-line">{supporterName}</div>
+                  <div className="big-day-player-line">{playerFirst}</div>
+                </>
               )}
-              {isRaffle && <span className="big-day-raffle-tag">🎟</span>}
             </button>
           );
         })}
@@ -469,21 +541,49 @@ function BigMonthCalendar({
   );
 }
 
-/* ---------- MODAL FORM & ENTRY DETAILS ---------- */
+/* ---------- MODALS: DATE PROMPT, FORM, DETAILS ---------- */
 
-function SupporterFormModal({ dayInfo, onClose, onSubmit }) {
-  const [playerId, setPlayerId] = useState("");
-  const [supporterName, setSupporterName] = useState("");
-  const [note, setNote] = useState("");
-  const [phone, setPhone] = useState("");
+function DatePromptModal({ dayInfo, onCancel, onClaim }) {
+  const monthName = MONTH_NAMES[dayInfo.month - 1];
+  return (
+    <div className="modal-backdrop">
+      <div className="modal">
+        <h2>
+          Claim {monthName} {dayInfo.day}?
+        </h2>
+        <p className="modal-text">
+          You’re about to claim this date as a <strong>supporter</strong> for a
+          Thunder player. This date will count as raffle tickets for the month’s
+          $100 drawing.
+        </p>
+        <div className="modal-buttons">
+          <button type="button" onClick={onCancel}>
+            Cancel
+          </button>
+          <button type="button" onClick={onClaim}>
+            Claim This Date
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SupporterFormModal({ dayInfo, initialValues, onClose, onSubmit }) {
+  const [supporterName, setSupporterName] = useState(
+    initialValues.supporterName || ""
+  );
+  const [playerId, setPlayerId] = useState(initialValues.playerId || "");
+  const [note, setNote] = useState(initialValues.note || "");
+  const [phone, setPhone] = useState(initialValues.phone || "");
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!playerId || !supporterName || !phone) {
-      alert("Please fill Player, Your Name, and Phone.");
+    if (!supporterName || !playerId || !phone) {
+      alert("Please fill in Supporter Name, Player, and Phone.");
       return;
     }
-    onSubmit({ playerId, supporterName, note, phone });
+    onSubmit({ supporterName, playerId, note, phone });
   };
 
   const monthName = MONTH_NAMES[dayInfo.month - 1];
@@ -495,12 +595,23 @@ function SupporterFormModal({ dayInfo, onClose, onSubmit }) {
           Claim {monthName} {dayInfo.day}
         </h2>
         <p className="modal-text">
-          Choose the player you’re supporting and tell us who you are. Phone
-          number is only visible to the team, not on the public site.
+          You are the <strong>supporter</strong> purchasing this date in support
+          of a Thunder player. Your information will not be shown publicly
+          except for your name on the calendar.
         </p>
         <form onSubmit={handleSubmit} className="modal-form">
           <label>
-            Player Supporting
+            Supporter Name
+            <input
+              type="text"
+              value={supporterName}
+              onChange={(e) => setSupporterName(e.target.value)}
+              required
+            />
+          </label>
+
+          <label>
+            Player You Are Supporting
             <select
               value={playerId}
               onChange={(e) => setPlayerId(e.target.value)}
@@ -516,16 +627,6 @@ function SupporterFormModal({ dayInfo, onClose, onSubmit }) {
           </label>
 
           <label>
-            Your Name
-            <input
-              type="text"
-              value={supporterName}
-              onChange={(e) => setSupporterName(e.target.value)}
-              required
-            />
-          </label>
-
-          <label>
             Note (optional)
             <textarea
               value={note}
@@ -535,7 +636,7 @@ function SupporterFormModal({ dayInfo, onClose, onSubmit }) {
           </label>
 
           <label>
-            Phone (team use only)
+            Phone (for payment / questions, not shown publicly)
             <input
               type="tel"
               value={phone}
@@ -544,11 +645,16 @@ function SupporterFormModal({ dayInfo, onClose, onSubmit }) {
             />
           </label>
 
+          <p className="modal-text small">
+            After submitting, please send payment via Venmo @Justin-Kayse or
+            Zelle 630-698-8769 (last 4: 8769).
+          </p>
+
           <div className="modal-buttons">
             <button type="button" onClick={onClose}>
               Cancel
             </button>
-            <button type="submit">Claim Day</button>
+            <button type="submit">Confirm & Save</button>
           </div>
         </form>
       </div>
@@ -570,14 +676,14 @@ function EntryDetailsModal({ entry, onClose }) {
           {monthName} {entry.day}
         </h2>
         <p className="modal-text">
-          This date has already been claimed. Here are the details:
+          This date has already been claimed by a supporter.
         </p>
         <div className="entry-details">
           <p>
-            <strong>Player:</strong> {playerName}
+            <strong>Supporter:</strong> {entry.supporterName}
           </p>
           <p>
-            <strong>Supporter:</strong> {entry.supporterName}
+            <strong>Player Supported:</strong> {playerName}
           </p>
           {entry.note && (
             <p>
@@ -607,7 +713,6 @@ function AdminPanel({
 }) {
   const [filter, setFilter] = useState("all"); // all | paid | unpaid
 
-  // sort by date
   const sorted = [...entries].sort((a, b) => {
     const da = new Date(a.year, a.month - 1, a.day);
     const db = new Date(b.year, b.month - 1, b.day);
@@ -620,7 +725,7 @@ function AdminPanel({
     return true;
   });
 
-  // summary by player (how many days, sum of day numbers)
+  // summary by player (days, sum of day numbers)
   const summaryByPlayerId = new Map();
   for (const e of entries) {
     if (!e.playerId) continue;
@@ -645,7 +750,7 @@ function AdminPanel({
     }
   );
 
-  // supporters grouped by player (for players to see who supported them)
+  // supporters by player (for players to see who supported them)
   const supportersByPlayerId = new Map(); // playerId => Set of supporter names
   for (const e of entries) {
     if (!e.playerId || !e.supporterName) continue;
@@ -667,7 +772,7 @@ function AdminPanel({
     }
   );
 
-  // supporter summary: which dates and total $ (month-based)
+  // supporter summary: which dates and total (sum of days)
   const supporters = new Map(); // supporterName => { entries: [], totalAmount }
   for (const e of entries) {
     if (!e.supporterName) continue;
@@ -678,22 +783,22 @@ function AdminPanel({
     }
     const rec = supporters.get(key);
     rec.entries.push(e);
-    // amount = month number (e.g., all April dates = $4 each)
-    rec.totalAmount += e.month;
+    // amount = sum of day numbers (e.g., 12 + 27 = 39)
+    rec.totalAmount += e.day;
   }
 
   const supporterSummaryRows = Array.from(supporters.entries()).map(
     ([name, rec]) => {
-      // sort entries by date
       const sortedEntries = [...rec.entries].sort((a, b) => {
         const da = new Date(a.year, a.month - 1, a.day);
         const db = new Date(b.year, b.month - 1, b.day);
         return da - db;
       });
 
-      const dateStrings = sortedEntries.map(
-        (e) => `${e.day}/${e.month}` // e.g. 3/4
-      );
+      const dateStrings = sortedEntries.map((e) => {
+        const monthName = MONTH_NAMES[e.month - 1];
+        return `${monthName} ${e.day}`;
+      });
 
       return {
         supporterName: name,
@@ -711,7 +816,7 @@ function AdminPanel({
 
   return (
     <section className="admin-panel">
-      <h2>Admin View – Sponsors, Paid Status & Player Summary</h2>
+      <h2>Admin View – Sponsors, Paid Status & Summaries</h2>
 
       <div className="admin-filters">
         <span>Show:</span>
@@ -750,8 +855,8 @@ function AdminPanel({
             <thead>
               <tr>
                 <th>Date</th>
-                <th>Player</th>
                 <th>Supporter</th>
+                <th>Player Supported</th>
                 <th>Note</th>
                 <th>Phone (private)</th>
                 <th>Paid?</th>
@@ -770,8 +875,8 @@ function AdminPanel({
                     <td>
                       {MONTH_NAMES[e.month - 1]} {e.day}, {e.year}
                     </td>
-                    <td>{playerName}</td>
                     <td>{e.supporterName}</td>
+                    <td>{playerName}</td>
                     <td>{e.note}</td>
                     <td>{e.phone}</td>
                     <td>
@@ -881,7 +986,7 @@ function AdminPanel({
         </table>
       </div>
 
-      {/* Player fundraising summary (as before) */}
+      {/* Player fundraising summary */}
       <h3 className="admin-summary-title">Player Fundraising Summary</h3>
       {summaryRows.length === 0 ? (
         <p>No days claimed yet.</p>
@@ -893,9 +998,9 @@ function AdminPanel({
                 <th>Player</th>
                 <th>Days sponsored</th>
                 <th>
-                  Day-number sum{" "}
+                  Sum of date numbers{" "}
                   <span className="summary-hint">
-                    (e.g., if donation equals the day of month)
+                    (e.g., December 12 + August 27 = 12 + 27 = 39)
                   </span>
                 </th>
               </tr>
@@ -938,7 +1043,7 @@ function AdminPanel({
         </div>
       )}
 
-      {/* Supporter summary with totals */}
+      {/* Supporter summary */}
       <h3 className="admin-summary-title">
         Supporter Summary – Dates & Totals
       </h3>
@@ -951,7 +1056,7 @@ function AdminPanel({
               <tr>
                 <th>Supporter</th>
                 <th>Dates</th>
-                <th>Total ($)</th>
+                <th>Total (sum of dates)</th>
               </tr>
             </thead>
             <tbody>
@@ -959,7 +1064,7 @@ function AdminPanel({
                 <tr key={row.supporterName}>
                   <td>{row.supporterName}</td>
                   <td>{row.dates}</td>
-                  <td>${row.totalAmount}</td>
+                  <td>{row.totalAmount}</td>
                 </tr>
               ))}
             </tbody>
@@ -969,16 +1074,17 @@ function AdminPanel({
 
       <p className="admin-note">
         Use these summaries to track who has supported each player and how much
-        each supporter has contributed, assuming the donation amount equals the
-        calendar month number (e.g., all April days = $4 each).
+        each supporter has contributed, assuming the amount is the sum of the
+        calendar dates they purchased (e.g., December 12 + August 27 → 12 + 27
+        = 39).
       </p>
     </section>
   );
 }
 
 function EditEntryModal({ entry, onClose, onSave }) {
-  const [playerId, setPlayerId] = useState(entry.playerId || "");
   const [supporterName, setSupporterName] = useState(entry.supporterName || "");
+  const [playerId, setPlayerId] = useState(entry.playerId || "");
   const [note, setNote] = useState(entry.note || "");
   const [phone, setPhone] = useState(entry.phone || "");
   const [paid, setPaid] = useState(!!entry.paid);
@@ -987,8 +1093,8 @@ function EditEntryModal({ entry, onClose, onSave }) {
     e.preventDefault();
     onSave({
       ...entry,
-      playerId,
       supporterName,
+      playerId,
       note,
       phone,
       paid,
@@ -1005,7 +1111,17 @@ function EditEntryModal({ entry, onClose, onSave }) {
         </h2>
         <form className="modal-form" onSubmit={handleSubmit}>
           <label>
-            Player
+            Supporter Name
+            <input
+              type="text"
+              value={supporterName}
+              onChange={(e) => setSupporterName(e.target.value)}
+              required
+            />
+          </label>
+
+          <label>
+            Player Supported
             <select
               value={playerId}
               onChange={(e) => setPlayerId(e.target.value)}
@@ -1018,16 +1134,6 @@ function EditEntryModal({ entry, onClose, onSave }) {
                 </option>
               ))}
             </select>
-          </label>
-
-          <label>
-            Supporter Name
-            <input
-              type="text"
-              value={supporterName}
-              onChange={(e) => setSupporterName(e.target.value)}
-              required
-            />
           </label>
 
           <label>
