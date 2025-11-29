@@ -407,4 +407,165 @@ function AdminPanel({ entries, onTogglePaid, onDelete }) {
   const sorted = [...entries].sort((a, b) => {
     const da = new Date(a.year, a.month - 1, a.day);
     const db = new Date(b.year, b.month - 1, b.day);
-    return da - db
+    return da - db;
+  });
+
+  const filtered = sorted.filter((e) => {
+    if (filter === "paid") return e.paid;
+    if (filter === "unpaid") return !e.paid;
+    return true;
+  });
+
+  // summary by player
+  const summaryByPlayerId = new Map();
+  for (const e of entries) {
+    if (!e.playerId) continue;
+    if (!summaryByPlayerId.has(e.playerId)) {
+      summaryByPlayerId.set(e.playerId, { days: 0, dayNumberSum: 0 });
+    }
+    const rec = summaryByPlayerId.get(e.playerId);
+    rec.days += 1;
+    rec.dayNumberSum += e.day;
+  }
+
+  const summaryRows = Array.from(summaryByPlayerId.entries()).map(
+    ([playerId, { days, dayNumberSum }]) => {
+      const player = PLAYERS.find((p) => p.id === playerId);
+      return {
+        playerName: player
+          ? `${player.firstName} ${player.lastName}`
+          : "Unknown",
+        days,
+        dayNumberSum,
+      };
+    }
+  );
+
+  return (
+    <section className="admin-panel">
+      <h2>Admin View – Sponsors, Paid Status & Player Summary</h2>
+
+      <div className="admin-filters">
+        <span>Show:</span>
+        <button
+          type="button"
+          className={filter === "all" ? "filter-button active" : "filter-button"}
+          onClick={() => setFilter("all")}
+        >
+          All
+        </button>
+        <button
+          type="button"
+          className={
+            filter === "paid" ? "filter-button active" : "filter-button"
+          }
+          onClick={() => setFilter("paid")}
+        >
+          Paid
+        </button>
+        <button
+          type="button"
+          className={
+            filter === "unpaid" ? "filter-button active" : "filter-button"
+          }
+          onClick={() => setFilter("unpaid")}
+        >
+          Unpaid
+        </button>
+      </div>
+
+      {filtered.length === 0 ? (
+        <p>No entries match this filter.</p>
+      ) : (
+        <div className="admin-table-wrapper">
+          <table className="admin-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Player</th>
+                <th>Supporter</th>
+                <th>Note</th>
+                <th>Phone (private)</th>
+                <th>Paid?</th>
+                <th>Clear</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((e) => {
+                const player = PLAYERS.find((p) => p.id === e.playerId);
+                const playerName = player
+                  ? `${player.firstName} ${player.lastName}`
+                  : "Unknown";
+                return (
+                  <tr key={e.id}>
+                    <td>
+                      {MONTH_NAMES[e.month - 1]} {e.day}, {e.year}
+                    </td>
+                    <td>{playerName}</td>
+                    <td>{e.supporterName}</td>
+                    <td>{e.note}</td>
+                    <td>{e.phone}</td>
+                    <td>
+                      <input
+                        type="checkbox"
+                        checked={e.paid}
+                        onChange={() => onTogglePaid(e.id)}
+                      />
+                    </td>
+                    <td>
+                      <button
+                        type="button"
+                        className="link-button"
+                        onClick={() => onDelete(e.id)}
+                      >
+                        Clear
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <h3 className="admin-summary-title">Player Fundraising Summary</h3>
+      {summaryRows.length === 0 ? (
+        <p>No days claimed yet.</p>
+      ) : (
+        <div className="admin-table-wrapper">
+          <table className="admin-table">
+            <thead>
+              <tr>
+                <th>Player</th>
+                <th>Days sponsored</th>
+                <th>
+                  Day-number sum{" "}
+                  <span className="summary-hint">
+                    (e.g., if donation equals the day of month)
+                  </span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {summaryRows.map((row) => (
+                <tr key={row.playerName}>
+                  <td>{row.playerName}</td>
+                  <td>{row.days}</td>
+                  <td>{row.dayNumberSum}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <p className="admin-note">
+        Use the filter buttons above to quickly see which sponsors have paid.
+        The summary table groups by player and shows how many dates they have
+        claimed. The day-number sum is useful if your fundraiser amount is
+        based on the calendar date.
+      </p>
+    </section>
+  );
+}
