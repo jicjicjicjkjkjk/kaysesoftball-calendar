@@ -725,11 +725,15 @@ function AdminPanel({
   entries,
   raffleWinners,
   onSetRaffleWinner,
-  onQuickUpdateEntry, // NEW: used for checkbox updates
+  onQuickUpdateEntry,
   onDelete,
   onEditEntry,
 }) {
   const [filter, setFilter] = useState("all"); // all | paid | unpaid
+  const [sortConfig, setSortConfig] = useState({
+    key: "date",
+    direction: "asc",
+  });
 
   const getPaymentMeta = (entry) => {
     const owed = entry.day; // $ owed for this date
@@ -758,18 +762,94 @@ function AdminPanel({
     return { owed, amount, method, isPaid, isFullyPaid, label };
   };
 
-  const sorted = [...entries].sort((a, b) => {
+  // base chronological sort for sanity
+  const baseSorted = [...entries].sort((a, b) => {
     const da = new Date(a.year, a.month - 1, a.day);
     const db = new Date(b.year, b.month - 1, b.day);
     return da - db;
   });
 
-  const filtered = sorted.filter((e) => {
+  // filter by paid/unpaid
+  const filtered = baseSorted.filter((e) => {
     const meta = getPaymentMeta(e);
     if (filter === "paid") return meta.isPaid;
     if (filter === "unpaid") return !meta.isPaid;
     return true;
   });
+
+  // Wrap into rows with computed fields for easier sorting
+  const rowsWithMeta = filtered.map((e) => {
+    const player = PLAYERS.find((p) => p.id === e.playerId);
+    const playerName = player
+      ? `${player.firstName} ${player.lastName}`
+      : "Unknown";
+    const dateObj = new Date(e.year, e.month - 1, e.day);
+    const meta = getPaymentMeta(e);
+    return {
+      entry: e,
+      playerName,
+      meta,
+      dateObj,
+    };
+  });
+
+  // sorting
+  const handleSort = (key) => {
+    setSortConfig((prev) => {
+      if (prev.key === key) {
+        return {
+          key,
+          direction: prev.direction === "asc" ? "desc" : "asc",
+        };
+      }
+      return { key, direction: "asc" };
+    });
+  };
+
+  const sortedRows = React.useMemo(() => {
+    if (!sortConfig?.key) return rowsWithMeta;
+    const { key, direction } = sortConfig;
+    const dir = direction === "asc" ? 1 : -1;
+
+    const getVal = (row) => {
+      const { entry, playerName, meta, dateObj } = row;
+      switch (key) {
+        case "date":
+          return dateObj.getTime();
+        case "supporter":
+          return (entry.supporterName || "").toLowerCase();
+        case "player":
+          return (playerName || "").toLowerCase();
+        case "note":
+          return (entry.note || "").toLowerCase();
+        case "phone":
+          return (entry.phone || "").toLowerCase();
+        case "zelle":
+          return meta.method === "zelle" && meta.isFullyPaid ? 1 : 0;
+        case "venmo":
+          return meta.method === "venmo" && meta.isFullyPaid ? 1 : 0;
+        case "status":
+          return meta.label.toLowerCase();
+        default:
+          return 0;
+      }
+    };
+
+    const copy = [...rowsWithMeta];
+    copy.sort((a, b) => {
+      const va = getVal(a);
+      const vb = getVal(b);
+      if (va < vb) return -1 * dir;
+      if (va > vb) return 1 * dir;
+      return 0;
+    });
+    return copy;
+  }, [rowsWithMeta, sortConfig]);
+
+  const renderSortIndicator = (columnKey) => {
+    if (sortConfig.key !== columnKey) return null;
+    return sortConfig.direction === "asc" ? " ▲" : " ▼";
+  };
 
   // Quick checkbox handler for Zelle/Venmo
   const handlePaymentCheckbox = (entry, method) => {
@@ -796,7 +876,7 @@ function AdminPanel({
     });
   };
 
-  // Player fundraising summary (unchanged)
+  // Player fundraising summary
   const summaryByPlayerId = new Map();
   for (const e of entries) {
     if (!e.playerId) continue;
@@ -826,7 +906,7 @@ function AdminPanel({
     month: idx + 1,
   }));
 
-  // CSV export (same as before)
+  // CSV export uses chronological baseSorted
   const handleExportCsv = () => {
     const header = [
       "Date",
@@ -842,7 +922,7 @@ function AdminPanel({
 
     const lines = [header.join(",")];
 
-    for (const e of sorted) {
+    for (const e of baseSorted) {
       const meta = getPaymentMeta(e);
       const player = PLAYERS.find((p) => p.id === e.playerId);
       const playerName = player
@@ -929,59 +1009,93 @@ function AdminPanel({
         </button>
       </div>
 
-      {filtered.length === 0 ? (
+      {sortedRows.length === 0 ? (
         <p>No entries match this filter.</p>
       ) : (
         <div className="admin-table-wrapper">
           <table className="admin-table">
             <thead>
               <tr>
-                <th>Date</th>
-                <th>Supporter</th>
-                <th>Player Supported</th>
-                <th>Note</th>
-                <th>Phone (private)</th>
-                <th>Zelle</th>
-                <th>Venmo</th>
-                <th>Payment status</th>
+                <th
+                  onClick={() => handleSort("date")}
+                  style={{ cursor: "pointer" }}
+                >
+                  Date{renderSortIndicator("date")}
+                </th>
+                <th
+                  onClick={() => handleSort("supporter")}
+                  style={{ cursor: "pointer" }}
+                >
+                  Supporter{renderSortIndicator("supporter")}
+                </th>
+                <th
+                  onClick={() => handleSort("player")}
+                  style={{ cursor: "pointer" }}
+                >
+                  Player Supported{renderSortIndicator("player")}
+                </th>
+                <th
+                  onClick={() => handleSort("note")}
+                  style={{ cursor: "pointer" }}
+                >
+                  Note{renderSortIndicator("note")}
+                </th>
+                <th
+                  onClick={() => handleSort("phone")}
+                  style={{ cursor: "pointer" }}
+                >
+                  Phone (private){renderSortIndicator("phone")}
+                </th>
+                <th
+                  onClick={() => handleSort("zelle")}
+                  style={{ cursor: "pointer" }}
+                >
+                  Zelle{renderSortIndicator("zelle")}
+                </th>
+                <th
+                  onClick={() => handleSort("venmo")}
+                  style={{ cursor: "pointer" }}
+                >
+                  Venmo{renderSortIndicator("venmo")}
+                </th>
+                <th
+                  onClick={() => handleSort("status")}
+                  style={{ cursor: "pointer" }}
+                >
+                  Payment status{renderSortIndicator("status")}
+                </th>
                 <th>Edit</th>
                 <th>Clear</th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map((e) => {
-                const player = PLAYERS.find((p) => p.id === e.playerId);
-                const playerName = player
-                  ? `${player.firstName} ${player.lastName}`
-                  : "Unknown";
-                const meta = getPaymentMeta(e);
-
+              {sortedRows.map(({ entry, playerName, meta }) => {
                 const zelleChecked =
                   meta.method === "zelle" && meta.isFullyPaid;
                 const venmoChecked =
                   meta.method === "venmo" && meta.isFullyPaid;
 
                 return (
-                  <tr key={e.id}>
+                  <tr key={entry.id}>
                     <td>
-                      {MONTH_NAMES[e.month - 1]} {e.day}, {e.year}
+                      {MONTH_NAMES[entry.month - 1]} {entry.day}, {entry.year}
                     </td>
-                    <td>{e.supporterName}</td>
+                    <td>{entry.supporterName}</td>
                     <td>{playerName}</td>
-                    <td>{e.note}</td>
-                    <td>{e.phone}</td>
+                    <td>{entry.note}</td>
+                    <td>{entry.phone}</td>
                     <td>
                       <input
                         type="checkbox"
                         checked={zelleChecked}
-                        onChange={() => handlePaymentCheckbox(e, "zelle")}
+                        onChange={() => handlePaymentCheckbox(entry, "zelle")}
                       />
                     </td>
                     <td>
                       <input
                         type="checkbox"
                         checked={venmoChecked}
-                        onChange={() => handlePaymentCheckbox(e, "venmo")}
+                        onChange={() => handlePaymentCheckbox(entry, "venmo")}
                       />
                     </td>
                     <td>{meta.label}</td>
@@ -989,7 +1103,7 @@ function AdminPanel({
                       <button
                         type="button"
                         className="link-button"
-                        onClick={() => onEditEntry(e)}
+                        onClick={() => onEditEntry(entry)}
                       >
                         Edit
                       </button>
@@ -998,7 +1112,7 @@ function AdminPanel({
                       <button
                         type="button"
                         className="link-button"
-                        onClick={() => onDelete(e.id)}
+                        onClick={() => onDelete(entry.id)}
                       >
                         Clear
                       </button>
