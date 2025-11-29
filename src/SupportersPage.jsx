@@ -139,22 +139,27 @@ export default function SupportersPage() {
     });
 
     const dates = sorted.map((e) => ({
-      id: e.id,
-      year: e.year,
-      monthName: MONTH_NAMES[e.month - 1],
-      day: e.day,
-    }));
+  id: e.id,
+  year: e.year,
+  monthName: MONTH_NAMES[e.month - 1],
+  day: e.day,
+}));
 
-    const total = sorted.reduce((sum, e) => sum + e.day, 0);
+const total = sorted.reduce((sum, e) => sum + e.day, 0);
+const totalPaid = sorted.reduce(
+  (sum, e) => sum + Number(e.paymentAmount || 0),
+  0
+);
 
-    return {
-      playerName: player
-        ? `${player.firstName} ${player.lastName}`
-        : "Unknown player",
-      supporterName: selectedSupporter,
-      dates,
-      total,
-    };
+return {
+  playerName: player
+    ? `${player.firstName} ${player.lastName}`
+    : "Unknown player",
+  supporterName: selectedSupporter,
+  dates,
+  total,
+  totalPaid,
+};
   }, [selectedPlayerId, selectedSupporter, entriesForPlayer]);
 
   const currentPlayer =
@@ -273,31 +278,48 @@ export default function SupportersPage() {
               </p>
             )}
 
-            {supporterDetails && (
-              <div className="supporter-details-card">
-                <p>
-                  <strong>Supporter:</strong> {supporterDetails.supporterName}
-                </p>
-                <p>
-                  <strong>Player Supported:</strong>{" "}
-                  {supporterDetails.playerName}
-                </p>
+{supporterDetails && (
+  <div className="supporter-details-card">
+    <p>
+      <strong>Supporter:</strong> {supporterDetails.supporterName}
+    </p>
+    <p>
+      <strong>Player Supported:</strong>{" "}
+      {supporterDetails.playerName}
+    </p>
 
-                <h3>Dates Purchased</h3>
-                <ul className="supporter-dates-list">
-                  {supporterDetails.dates.map((d) => (
-                    <li key={d.id}>
-                      {d.monthName} {d.day}, {d.year}
-                    </li>
-                  ))}
-                </ul>
+    <h3>Dates Purchased</h3>
+    <ul className="supporter-dates-list">
+      {supporterDetails.dates.map((d) => (
+        <li key={d.id}>
+          {d.monthName} {d.day}, {d.year}
+        </li>
+      ))}
+    </ul>
 
-                <p className="supporter-total">
-                  <strong>Total (sum of dates):</strong>{" "}
-                  {supporterDetails.total}
-                </p>
-              </div>
-            )}
+    <p className="supporter-total">
+      <strong>Total owed (sum of dates):</strong>{" "}
+      ${supporterDetails.total}
+    </p>
+
+    {supporterDetails.totalPaid >= supporterDetails.total ? (
+      <p className="supporter-total">
+        <strong>Thank you!</strong> Payment has been received in full.
+      </p>
+    ) : supporterDetails.totalPaid > 0 ? (
+      <p className="supporter-total">
+        You have paid ${supporterDetails.totalPaid} so far. Remaining
+        balance: ${supporterDetails.total - supporterDetails.totalPaid}.
+        Please remit via Zelle (630-698-8769) or Venmo (@Justin-Kayse).
+      </p>
+    ) : (
+      <p className="supporter-total">
+        Please remit ${supporterDetails.total} via Zelle
+        (630-698-8769) or Venmo (@Justin-Kayse).
+      </p>
+    )}
+  </div>
+)}
           </section>
         </section>
       </main>
