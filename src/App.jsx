@@ -196,15 +196,16 @@ export default function App() {
           </div>
         </div>
 
-        <div className="header-buttons">
+                <div className="header-buttons">
           <button
             className="admin-toggle"
-            onClick={() => setShowAdmin((prev) => !prev)}
+            onClick={handleAdminToggleClick}
           >
             {showAdmin ? "Hide Admin View" : "Show Admin View (Paid Tracking)"}
           </button>
         </div>
-      </header>
+      
+            </header>
 
       {/* MAIN CALENDAR AREA */}
       <section className="calendar-section">
