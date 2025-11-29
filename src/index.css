@@ -276,13 +276,13 @@ a:hover {
 }
 
 .overview-day-available {
-  background: #e8f5e9;
-  color: #2e7d32;
+  background: var(--thunder-teal-light);
+  color: var(--thunder-dark);
 }
 
 .overview-day-taken {
-  background: #fde0dc;
-  color: #b71c1c;
+  background: #000000;
+  color: #ffffff;
 }
 
 .overview-day-raffle {
