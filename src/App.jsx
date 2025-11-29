@@ -53,6 +53,16 @@ export default function App() {
   const [editingEntry, setEditingEntry] = useState(null);
   const [hasAdminAccess, setHasAdminAccess] = useState(false);
   const [showAdminPrompt, setShowAdminPrompt] = useState(false);
+
+    const handleAdminToggleClick = () => {
+    if (!hasAdminAccess) {
+      // first time: ask for password
+      setShowAdminPrompt(true);
+      return;
+    }
+    // already authenticated, just toggle
+    setShowAdmin((prev) => !prev);
+  };
   
   // Load from localStorage on first render
   useEffect(() => {
