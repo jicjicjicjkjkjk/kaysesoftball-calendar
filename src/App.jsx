@@ -725,25 +725,56 @@ function AdminPanel({
   entries,
   raffleWinners,
   onSetRaffleWinner,
-  onTogglePaid,
+  onTogglePaid, // kept for compatibility but not used
   onDelete,
   onEditEntry,
 }) {
   const [filter, setFilter] = useState("all"); // all | paid | unpaid
 
+  // Normalize payment info and compute a meta object
+  const getPaymentMeta = (entry) => {
+    const owed = entry.day; // $1 per day number
+    const methodRaw = entry.paymentMethod || "unpaid";
+    const amount = Number(entry.paymentAmount || 0);
+
+    const method =
+      methodRaw === "zelle" || methodRaw === "venmo" ? methodRaw : "unpaid";
+
+    const isPaid = method !== "unpaid" && amount > 0;
+    const isFullyPaid = isPaid && amount >= owed;
+
+    let label;
+    if (!isPaid) {
+      label = "Unpaid";
+    } else {
+      const base =
+        method === "zelle" ? "Paid via Zelle" : "Paid via Venmo";
+      if (isFullyPaid) {
+        label = `${base} (full $${amount})`;
+      } else {
+        label = `${base} (partial $${amount} of $${owed})`;
+      }
+    }
+
+    return { owed, amount, method, isPaid, isFullyPaid, label };
+  };
+
+  // Sort entries chronologically
   const sorted = [...entries].sort((a, b) => {
     const da = new Date(a.year, a.month - 1, a.day);
     const db = new Date(b.year, b.month - 1, b.day);
     return da - db;
   });
 
+  // Filter based on paid/unpaid using payment meta
   const filtered = sorted.filter((e) => {
-    if (filter === "paid") return e.paid;
-    if (filter === "unpaid") return !e.paid;
-    return true;
+    const meta = getPaymentMeta(e);
+    if (filter === "paid") return meta.isPaid;
+    if (filter === "unpaid") return !meta.isPaid;
+    return true; // all
   });
 
-  // summary by player (days, sum of day numbers)
+  // Player fundraising summary (unchanged)
   const summaryByPlayerId = new Map();
   for (const e of entries) {
     if (!e.playerId) continue;
@@ -768,73 +799,79 @@ function AdminPanel({
     }
   );
 
-  // supporters by player (for players to see who supported them)
-  const supportersByPlayerId = new Map(); // playerId => Set of supporter names
-  for (const e of entries) {
-    if (!e.playerId || !e.supporterName) continue;
-    if (!supportersByPlayerId.has(e.playerId)) {
-      supportersByPlayerId.set(e.playerId, new Set());
-    }
-    supportersByPlayerId.get(e.playerId).add(e.supporterName.trim());
-  }
-
-  const supportersByPlayerRows = Array.from(supportersByPlayerId.entries()).map(
-    ([playerId, supporterSet]) => {
-      const player = PLAYERS.find((p) => p.id === playerId);
-      return {
-        playerName: player
-          ? `${player.firstName} ${player.lastName}`
-          : "Unknown",
-        supporters: Array.from(supporterSet).sort(),
-      };
-    }
-  );
-
-  // supporter summary: which dates and total (sum of days)
-  const supporters = new Map(); // supporterName => { entries: [], totalAmount }
-  for (const e of entries) {
-    if (!e.supporterName) continue;
-    const key = e.supporterName.trim();
-    if (!key) continue;
-    if (!supporters.has(key)) {
-      supporters.set(key, { entries: [], totalAmount: 0 });
-    }
-    const rec = supporters.get(key);
-    rec.entries.push(e);
-    // amount = sum of day numbers (e.g., 12 + 27 = 39)
-    rec.totalAmount += e.day;
-  }
-
-  const supporterSummaryRows = Array.from(supporters.entries()).map(
-    ([name, rec]) => {
-      const sortedEntries = [...rec.entries].sort((a, b) => {
-        const da = new Date(a.year, a.month - 1, a.day);
-        const db = new Date(b.year, b.month - 1, b.day);
-        return da - db;
-      });
-
-      const dateStrings = sortedEntries.map((e) => {
-        const monthName = MONTH_NAMES[e.month - 1];
-        return `${monthName} ${e.day}`;
-      });
-
-      return {
-        supporterName: name,
-        dates: dateStrings.join(", "),
-        totalAmount: rec.totalAmount,
-      };
-    }
-  );
-
-  // month list for raffle UI
+  // Month list for raffle UI
   const monthsForRaffle = MONTH_NAMES.map((name, idx) => ({
     name,
     month: idx + 1,
   }));
 
+  // Export CSV of all entries
+  const handleExportCsv = () => {
+    const header = [
+      "Date",
+      "Supporter",
+      "Player",
+      "Note",
+      "Phone",
+      "Owed",
+      "PaymentAmount",
+      "PaymentMethod",
+      "PaymentStatus",
+    ];
+
+    const lines = [header.join(",")];
+
+    for (const e of sorted) {
+      const meta = getPaymentMeta(e);
+      const player = PLAYERS.find((p) => p.id === e.playerId);
+      const playerName = player
+        ? `${player.firstName} ${player.lastName}`
+        : "Unknown";
+      const dateStr = `${MONTH_NAMES[e.month - 1]} ${e.day}, ${e.year}`;
+
+      const escape = (val) => {
+        const s = val == null ? "" : String(val);
+        if (s.includes('"') || s.includes(",") || s.includes("\n")) {
+          return `"${s.replace(/"/g, '""')}"`;
+        }
+        return s;
+      };
+
+      const row = [
+        dateStr,
+        escape(e.supporterName || ""),
+        escape(playerName),
+        escape(e.note || ""),
+        escape(e.phone || ""),
+        meta.owed,
+        meta.amount,
+        meta.method === "unpaid"
+          ? "unpaid"
+          : meta.method === "zelle"
+          ? "zelle"
+          : "venmo",
+        escape(meta.label),
+      ];
+
+      lines.push(row.join(","));
+    }
+
+    const blob = new Blob([lines.join("\n")], {
+      type: "text/csv;charset=utf-8;",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "thunder-calendar-entries.csv";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <section className="admin-panel">
-      <h2>Admin View – Sponsors, Paid Status & Summaries</h2>
+      <h2>Admin View – Sponsors, Payments & Player Summary</h2>
 
       <div className="admin-filters">
         <span>Show:</span>
@@ -847,12 +884,10 @@ function AdminPanel({
         </button>
         <button
           type="button"
-          className={
-            filter === "paid" ? "filter-button active" : "filter-button"
-          }
+          className={filter === "paid" ? "filter-button active" : "filter-button"}
           onClick={() => setFilter("paid")}
         >
-          Paid
+          Paid (any method)
         </button>
         <button
           type="button"
@@ -862,6 +897,14 @@ function AdminPanel({
           onClick={() => setFilter("unpaid")}
         >
           Unpaid
+        </button>
+        <button
+          type="button"
+          className="filter-button"
+          onClick={handleExportCsv}
+          style={{ marginLeft: "auto" }}
+        >
+          Export CSV
         </button>
       </div>
 
@@ -877,7 +920,7 @@ function AdminPanel({
                 <th>Player Supported</th>
                 <th>Note</th>
                 <th>Phone (private)</th>
-                <th>Paid?</th>
+                <th>Payment status</th>
                 <th>Edit</th>
                 <th>Clear</th>
               </tr>
@@ -888,6 +931,7 @@ function AdminPanel({
                 const playerName = player
                   ? `${player.firstName} ${player.lastName}`
                   : "Unknown";
+                const meta = getPaymentMeta(e);
                 return (
                   <tr key={e.id}>
                     <td>
@@ -897,13 +941,7 @@ function AdminPanel({
                     <td>{playerName}</td>
                     <td>{e.note}</td>
                     <td>{e.phone}</td>
-                    <td>
-                      <input
-                        type="checkbox"
-                        checked={e.paid}
-                        onChange={() => onTogglePaid(e.id)}
-                      />
-                    </td>
+                    <td>{meta.label}</td>
                     <td>
                       <button
                         type="button"
@@ -947,7 +985,7 @@ function AdminPanel({
           </thead>
           <tbody>
             {monthsForRaffle.map((m) => {
-              const key = raffleKey(CURRENT_YEAR, m.month);
+              const key = `${CURRENT_YEAR}-${m.month}`;
               const selectedDay = raffleWinners[key] || "";
               const daysInMonth = new Date(
                 CURRENT_YEAR,
@@ -1036,65 +1074,10 @@ function AdminPanel({
         </div>
       )}
 
-      {/* Supporters by player */}
-      <h3 className="admin-summary-title">Supporters by Player</h3>
-      {supportersByPlayerRows.length === 0 ? (
-        <p>No supporters yet.</p>
-      ) : (
-        <div className="admin-table-wrapper">
-          <table className="admin-table">
-            <thead>
-              <tr>
-                <th>Player</th>
-                <th>Supporters</th>
-              </tr>
-            </thead>
-            <tbody>
-              {supportersByPlayerRows.map((row) => (
-                <tr key={row.playerName}>
-                  <td>{row.playerName}</td>
-                  <td>{row.supporters.join(", ")}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {/* Supporter summary */}
-      <h3 className="admin-summary-title">
-        Supporter Summary – Dates & Totals
-      </h3>
-      {supporterSummaryRows.length === 0 ? (
-        <p>No supporters yet.</p>
-      ) : (
-        <div className="admin-table-wrapper">
-          <table className="admin-table">
-            <thead>
-              <tr>
-                <th>Supporter</th>
-                <th>Dates</th>
-                <th>Total (sum of dates)</th>
-              </tr>
-            </thead>
-            <tbody>
-              {supporterSummaryRows.map((row) => (
-                <tr key={row.supporterName}>
-                  <td>{row.supporterName}</td>
-                  <td>{row.dates}</td>
-                  <td>{row.totalAmount}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
       <p className="admin-note">
-        Use these summaries to track who has supported each player and how much
-        each supporter has contributed, assuming the amount is the sum of the
-        calendar dates they purchased (e.g., December 12 + August 27 → 12 + 27
-        = 39).
+        Use this view to track who has supported each player, how many days
+        are sponsored, and export a CSV snapshot of all entries and payment
+        status.
       </p>
     </section>
   );
