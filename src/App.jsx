@@ -725,15 +725,14 @@ function AdminPanel({
   entries,
   raffleWinners,
   onSetRaffleWinner,
-  onTogglePaid, // kept for compatibility but not used
+  onQuickUpdateEntry, // NEW: used for checkbox updates
   onDelete,
   onEditEntry,
 }) {
   const [filter, setFilter] = useState("all"); // all | paid | unpaid
 
-  // Normalize payment info and compute a meta object
   const getPaymentMeta = (entry) => {
-    const owed = entry.day; // $1 per day number
+    const owed = entry.day; // $ owed for this date
     const methodRaw = entry.paymentMethod || "unpaid";
     const amount = Number(entry.paymentAmount || 0);
 
@@ -759,20 +758,43 @@ function AdminPanel({
     return { owed, amount, method, isPaid, isFullyPaid, label };
   };
 
-  // Sort entries chronologically
   const sorted = [...entries].sort((a, b) => {
     const da = new Date(a.year, a.month - 1, a.day);
     const db = new Date(b.year, b.month - 1, b.day);
     return da - db;
   });
 
-  // Filter based on paid/unpaid using payment meta
   const filtered = sorted.filter((e) => {
     const meta = getPaymentMeta(e);
     if (filter === "paid") return meta.isPaid;
     if (filter === "unpaid") return !meta.isPaid;
-    return true; // all
+    return true;
   });
+
+  // Quick checkbox handler for Zelle/Venmo
+  const handlePaymentCheckbox = (entry, method) => {
+    const meta = getPaymentMeta(entry);
+    const owed = meta.owed;
+
+    // If this method is already full-paid, uncheck => unpaid
+    if (meta.method === method && meta.isFullyPaid) {
+      onQuickUpdateEntry({
+        ...entry,
+        paymentMethod: "unpaid",
+        paymentAmount: 0,
+        paid: false,
+      });
+      return;
+    }
+
+    // Otherwise, set to full payment via that method
+    onQuickUpdateEntry({
+      ...entry,
+      paymentMethod: method,
+      paymentAmount: owed,
+      paid: true,
+    });
+  };
 
   // Player fundraising summary (unchanged)
   const summaryByPlayerId = new Map();
@@ -799,13 +821,12 @@ function AdminPanel({
     }
   );
 
-  // Month list for raffle UI
   const monthsForRaffle = MONTH_NAMES.map((name, idx) => ({
     name,
     month: idx + 1,
   }));
 
-  // Export CSV of all entries
+  // CSV export (same as before)
   const handleExportCsv = () => {
     const header = [
       "Date",
@@ -920,6 +941,8 @@ function AdminPanel({
                 <th>Player Supported</th>
                 <th>Note</th>
                 <th>Phone (private)</th>
+                <th>Zelle</th>
+                <th>Venmo</th>
                 <th>Payment status</th>
                 <th>Edit</th>
                 <th>Clear</th>
@@ -932,6 +955,12 @@ function AdminPanel({
                   ? `${player.firstName} ${player.lastName}`
                   : "Unknown";
                 const meta = getPaymentMeta(e);
+
+                const zelleChecked =
+                  meta.method === "zelle" && meta.isFullyPaid;
+                const venmoChecked =
+                  meta.method === "venmo" && meta.isFullyPaid;
+
                 return (
                   <tr key={e.id}>
                     <td>
@@ -941,6 +970,20 @@ function AdminPanel({
                     <td>{playerName}</td>
                     <td>{e.note}</td>
                     <td>{e.phone}</td>
+                    <td>
+                      <input
+                        type="checkbox"
+                        checked={zelleChecked}
+                        onChange={() => handlePaymentCheckbox(e, "zelle")}
+                      />
+                    </td>
+                    <td>
+                      <input
+                        type="checkbox"
+                        checked={venmoChecked}
+                        onChange={() => handlePaymentCheckbox(e, "venmo")}
+                      />
+                    </td>
                     <td>{meta.label}</td>
                     <td>
                       <button
