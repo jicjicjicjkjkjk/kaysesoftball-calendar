@@ -313,13 +313,13 @@ a:hover {
 }
 
 .legend-available {
-  background: #e8f5e9;
-  border: 1px solid #c8e6c9;
+  background: var(--thunder-teal-light);
+  border: 1px solid var(--thunder-teal);
 }
 
 .legend-taken {
-  background: #fde0dc;
-  border: 1px solid #ffccbc;
+  background: #000000;
+  border: 1px solid #333333;
 }
 
 /* -------- BIG MONTH CALENDAR -------- */
