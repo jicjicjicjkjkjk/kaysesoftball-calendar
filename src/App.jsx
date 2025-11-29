@@ -215,11 +215,15 @@ export default function App() {
             </div>
             <div className="hero-text">
               <h1>Thunder 12U Teal Calendar Fundraiser</h1>
-              <p>
-                Support Thunder 12U Teal by purchasing calendar dates as a{" "}
-                <strong>supporter</strong> in honor of a player. Your dates
-                count as raffle entries for monthly cash drawings.
-              </p>
+<p>
+  As a <strong>supporter</strong>, you are buying{" "}
+  <strong>raffle tickets</strong> by choosing calendar dates. The
+  number on each date is the number of tickets you receive for that
+  month&apos;s $100 drawing. We also record which player you&apos;re
+  supporting so our players and coaches know who to thank – it
+  doesn&apos;t change your odds in the drawing.
+</p>
+              
 
               <div className="venmo-zelle">
                 <strong>Step 2: Pay after you claim your date(s)</strong>
