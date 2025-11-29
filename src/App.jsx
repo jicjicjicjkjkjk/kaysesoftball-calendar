@@ -273,27 +273,34 @@ export default function App() {
 
       {/* HOW IT WORKS SECTION */}
       <section className="how-it-works">
-        <h2>How the Thunder Calendar Fundraiser Works</h2>
-        <p>
-          Each <strong>supporter</strong> chooses one or more available dates
-          on the calendar. The number on the date is the number of{" "}
-          <strong>raffle tickets</strong> you receive for that month’s drawing.
-        </p>
-        <p>
-          For example, if you claim <strong>January 12</strong>, you get{" "}
-          <strong>12 raffle tickets</strong> for the January drawing.
-        </p>
-        <p>
-          At the end of each month, we put all tickets into a drawing and{" "}
-          <strong>pull one winner for $100</strong>. We’ll record the drawing as
-          a team and upload the video to this site.
-        </p>
-        <p>
-          Your support helps fund professional coaches, quality indoor training
-          space, and extra tournaments and games for Thunder 12U Teal. Thank you
-          for investing in our players!
-        </p>
-      </section>
+  <h2>How the Thunder Calendar Fundraiser Works</h2>
+  <p>
+    Each <strong>supporter</strong> chooses one or more available dates
+    on the calendar. The number on the date is the number of{" "}
+    <strong>raffle tickets</strong> you receive for that month&apos;s
+    drawing.
+  </p>
+  <p>
+    For example, if you claim <strong>January 12</strong>, you get{" "}
+    <strong>12 raffle tickets</strong> for the January drawing.
+  </p>
+  <p>
+    At the end of each month, after the fundraising window closes, we put
+    all of the tickets into a drawing at a Thunder 12U Teal team practice
+    and <strong>pull one winner for $100</strong>. We&apos;ll reach out to
+    the winner directly by text or email.
+  </p>
+  <p>
+    When you claim a date, you also select which player you&apos;re
+    supporting. That&apos;s just so our players and coaches know who to
+    thank – it does <em>not</em> affect your raffle chances.
+  </p>
+  <p>
+    Your support helps fund professional coaches, quality indoor training
+    space, and extra tournaments and games for Thunder 12U Teal. Thank you
+    for investing in our players!
+  </p>
+</section>
 
       {/* MAIN CALENDAR AREA */}
       <section className="calendar-section">
