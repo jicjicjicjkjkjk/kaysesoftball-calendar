@@ -52,18 +52,7 @@ export default function App() {
   const [showEntryDetails, setShowEntryDetails] = useState(false);
   const [editingEntry, setEditingEntry] = useState(null);
   const [hasAdminAccess, setHasAdminAccess] = useState(false);
-  const [showAdminPrompt, setShowAdminPrompt] = useState(false);
 
-    const handleAdminToggleClick = () => {
-    if (!hasAdminAccess) {
-      // first time: ask for password
-      setShowAdminPrompt(true);
-      return;
-    }
-    // already authenticated, just toggle
-    setShowAdmin((prev) => !prev);
-  };
-  
   // Load from localStorage on first render
   useEffect(() => {
     try {
@@ -151,9 +140,22 @@ export default function App() {
     setEditingEntry(null);
   };
 
+  const handleAdminToggleClick = () => {
+    if (!hasAdminAccess) {
+      const value = window.prompt("Coach password:");
+      if (value === null) return; // cancelled
+      if (value !== "thunderboom") {
+        alert("Incorrect password.");
+        return;
+      }
+      setHasAdminAccess(true);
+    }
+    setShowAdmin((prev) => !prev);
+  };
+
   return (
     <div className="page">
-            <header className="header">
+      <header className="header">
         <div className="hero">
           <div className="hero-left">
             <div className="hero-logo-wrap">
@@ -196,7 +198,7 @@ export default function App() {
           </div>
         </div>
 
-                <div className="header-buttons">
+        <div className="header-buttons">
           <button
             className="admin-toggle"
             onClick={handleAdminToggleClick}
@@ -204,8 +206,7 @@ export default function App() {
             {showAdmin ? "Hide Admin View" : "Show Admin View (Paid Tracking)"}
           </button>
         </div>
-      
-            </header>
+      </header>
 
       {/* MAIN CALENDAR AREA */}
       <section className="calendar-section">
@@ -267,58 +268,6 @@ export default function App() {
         />
       )}
 
-function AdminPasswordModal({ onClose, onSubmit }) {
-  const [password, setPassword] = useState("");
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    onSubmit(password.trim());
-  };
-
-  return (
-    <div className="modal-backdrop">
-      <div className="modal">
-        <h2>Coach Access</h2>
-        <p className="modal-text">
-          Enter the Thunder coach password to open the admin view.
-        </p>
-        <form onSubmit={handleSubmit} className="modal-form">
-          <label>
-            Password
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              autoFocus
-            />
-          </label>
-          <div className="modal-buttons">
-            <button type="button" onClick={onClose}>
-              Cancel
-            </button>
-            <button type="submit">Unlock Admin</button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
-      
-            {showAdminPrompt && (
-        <AdminPasswordModal
-          onClose={() => setShowAdminPrompt(false)}
-          onSubmit={(value) => {
-            if (value === "thunderboom") {
-              setHasAdminAccess(true);
-              setShowAdmin(true);
-              setShowAdminPrompt(false);
-            } else {
-              alert("Incorrect password.");
-            }
-          }}
-        />
-      )}
-      
       <footer className="footer">
         <small>© {CURRENT_YEAR} Kayse Softball • kaysesoftball.com</small>
       </footer>
