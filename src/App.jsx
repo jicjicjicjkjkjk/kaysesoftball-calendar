@@ -20,6 +20,7 @@ const WEEKDAY_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 const CURRENT_YEAR = new Date().getFullYear();
 const STORAGE_KEY = "kaysesoftball_calendar_entries_v1";
+const RAFFLE_KEY = "kaysesoftball_calendar_raffle_v1";
 
 function buildCalendarCells(year, monthIndex) {
   const first = new Date(year, monthIndex, 1);
@@ -42,6 +43,8 @@ function buildCalendarCells(year, monthIndex) {
 const makeId = () =>
   Math.random().toString(36).slice(2) + Date.now().toString(36);
 
+const raffleKey = (year, month) => `${year}-${month}`;
+
 export default function App() {
   const [entries, setEntries] = useState([]);
   const [selectedDay, setSelectedDay] = useState(null); // {year,month,day}
@@ -52,6 +55,7 @@ export default function App() {
   const [showEntryDetails, setShowEntryDetails] = useState(false);
   const [editingEntry, setEditingEntry] = useState(null);
   const [hasAdminAccess, setHasAdminAccess] = useState(false);
+  const [raffleWinners, setRaffleWinners] = useState({}); // { "2025-4": 7 }
 
   // Load from localStorage on first render
   useEffect(() => {
@@ -63,9 +67,18 @@ export default function App() {
     } catch (err) {
       console.error("Failed to load entries", err);
     }
+
+    try {
+      const rawR = localStorage.getItem(RAFFLE_KEY);
+      if (rawR) {
+        setRaffleWinners(JSON.parse(rawR));
+      }
+    } catch (err) {
+      console.error("Failed to load raffle winners", err);
+    }
   }, []);
 
-  // Save to localStorage whenever entries change
+  // Save entries when they change
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
@@ -73,6 +86,15 @@ export default function App() {
       console.error("Failed to save entries", err);
     }
   }, [entries]);
+
+  // Save raffle winners when they change
+  useEffect(() => {
+    try {
+      localStorage.setItem(RAFFLE_KEY, JSON.stringify(raffleWinners));
+    } catch (err) {
+      console.error("Failed to save raffle winners", err);
+    }
+  }, [raffleWinners]);
 
   const handleOpenDay = (year, month, day) => {
     setSelectedDay({ year, month, day });
@@ -153,6 +175,19 @@ export default function App() {
     setShowAdmin((prev) => !prev);
   };
 
+  const handleSetRaffleWinner = (year, month, dayOrNull) => {
+    setRaffleWinners((prev) => {
+      const key = raffleKey(year, month);
+      const next = { ...prev };
+      if (dayOrNull == null || dayOrNull === "") {
+        delete next[key];
+      } else {
+        next[key] = dayOrNull;
+      }
+      return next;
+    });
+  };
+
   return (
     <div className="page">
       <header className="header">
@@ -199,10 +234,7 @@ export default function App() {
         </div>
 
         <div className="header-buttons">
-          <button
-            className="admin-toggle"
-            onClick={handleAdminToggleClick}
-          >
+          <button className="admin-toggle" onClick={handleAdminToggleClick}>
             {showAdmin ? "Hide Admin View" : "Show Admin View (Paid Tracking)"}
           </button>
         </div>
@@ -214,6 +246,7 @@ export default function App() {
           <MonthOverviewGrid
             year={CURRENT_YEAR}
             entries={entries}
+            raffleWinners={raffleWinners}
             onSelectMonth={handleSelectMonth}
           />
         ) : (
@@ -230,6 +263,7 @@ export default function App() {
               monthIndex={selectedMonthIndex}
               monthName={MONTH_NAMES[selectedMonthIndex]}
               entries={entries}
+              raffleWinners={raffleWinners}
               onDayClick={handleDayClick}
             />
           </div>
@@ -254,6 +288,8 @@ export default function App() {
       {showAdmin && (
         <AdminPanel
           entries={entries}
+          raffleWinners={raffleWinners}
+          onSetRaffleWinner={handleSetRaffleWinner}
           onTogglePaid={handleTogglePaid}
           onDelete={handleDeleteEntry}
           onEditEntry={handleStartEditEntry}
@@ -278,7 +314,7 @@ export default function App() {
 /* ---------- PUBLIC VIEW COMPONENTS ---------- */
 
 // Small month “summary” tiles (3 x 4 grid)
-function MonthOverviewGrid({ year, entries, onSelectMonth }) {
+function MonthOverviewGrid({ year, entries, raffleWinners, onSelectMonth }) {
   return (
     <div className="calendar-overview-grid">
       {MONTH_NAMES.map((name, idx) => (
@@ -288,6 +324,7 @@ function MonthOverviewGrid({ year, entries, onSelectMonth }) {
           monthIndex={idx}
           monthName={name}
           entries={entries}
+          raffleWinners={raffleWinners}
           onClick={() => onSelectMonth(idx)}
         />
       ))}
@@ -295,7 +332,14 @@ function MonthOverviewGrid({ year, entries, onSelectMonth }) {
   );
 }
 
-function MonthOverviewTile({ year, monthIndex, monthName, entries, onClick }) {
+function MonthOverviewTile({
+  year,
+  monthIndex,
+  monthName,
+  entries,
+  raffleWinners,
+  onClick,
+}) {
   const cells = buildCalendarCells(year, monthIndex);
 
   // quick lookup of taken days
@@ -306,6 +350,8 @@ function MonthOverviewTile({ year, monthIndex, monthName, entries, onClick }) {
       )
       .map((e) => e.day)
   );
+
+  const raffleDay = raffleWinners[raffleKey(year, monthIndex + 1)];
 
   return (
     <button type="button" className="month-overview-tile" onClick={onClick}>
@@ -326,9 +372,14 @@ function MonthOverviewTile({ year, monthIndex, monthName, entries, onClick }) {
             return <div key={idx} className="overview-day empty" />;
           }
           const isTaken = takenSet.has(cell.day);
-          const className = `overview-day ${
-            isTaken ? "overview-day-taken" : "overview-day-available"
-          }`;
+          const isRaffle = raffleDay === cell.day;
+          const className = [
+            "overview-day",
+            isTaken ? "overview-day-taken" : "overview-day-available",
+            isRaffle ? "overview-day-raffle" : "",
+          ]
+            .join(" ")
+            .trim();
           return (
             <div key={idx} className={className}>
               <span className="overview-day-number">{cell.day}</span>
@@ -349,8 +400,16 @@ function MonthOverviewTile({ year, monthIndex, monthName, entries, onClick }) {
 }
 
 // Big full calendar for one month
-function BigMonthCalendar({ year, monthIndex, monthName, entries, onDayClick }) {
+function BigMonthCalendar({
+  year,
+  monthIndex,
+  monthName,
+  entries,
+  raffleWinners,
+  onDayClick,
+}) {
   const cells = buildCalendarCells(year, monthIndex);
+  const raffleDay = raffleWinners[raffleKey(year, monthIndex + 1)];
 
   return (
     <div className="big-month-card">
@@ -378,10 +437,15 @@ function BigMonthCalendar({ year, monthIndex, monthName, entries, onDayClick }) 
           const playerName = player ? player.firstName : "Player";
 
           const label = isTaken ? `${cell.day}: ${playerName}` : `${cell.day}`;
+          const isRaffle = raffleDay === cell.day;
 
-          const className = `big-day-cell ${
-            isTaken ? "big-day-taken" : "big-day-available"
-          }`;
+          const className = [
+            "big-day-cell",
+            isTaken ? "big-day-taken" : "big-day-available",
+            isRaffle ? "big-day-raffle" : "",
+          ]
+            .join(" ")
+            .trim();
 
           return (
             <button
@@ -396,6 +460,7 @@ function BigMonthCalendar({ year, monthIndex, monthName, entries, onDayClick }) 
                   {entry.supporterName}
                 </span>
               )}
+              {isRaffle && <span className="big-day-raffle-tag">🎟</span>}
             </button>
           );
         })}
@@ -532,7 +597,14 @@ function EntryDetailsModal({ entry, onClose }) {
 
 /* ---------- ADMIN PANEL & EDIT MODAL ---------- */
 
-function AdminPanel({ entries, onTogglePaid, onDelete, onEditEntry }) {
+function AdminPanel({
+  entries,
+  raffleWinners,
+  onSetRaffleWinner,
+  onTogglePaid,
+  onDelete,
+  onEditEntry,
+}) {
   const [filter, setFilter] = useState("all"); // all | paid | unpaid
 
   // sort by date
@@ -548,7 +620,7 @@ function AdminPanel({ entries, onTogglePaid, onDelete, onEditEntry }) {
     return true;
   });
 
-  // summary by player
+  // summary by player (how many days, sum of day numbers)
   const summaryByPlayerId = new Map();
   for (const e of entries) {
     if (!e.playerId) continue;
@@ -572,6 +644,70 @@ function AdminPanel({ entries, onTogglePaid, onDelete, onEditEntry }) {
       };
     }
   );
+
+  // supporters grouped by player (for players to see who supported them)
+  const supportersByPlayerId = new Map(); // playerId => Set of supporter names
+  for (const e of entries) {
+    if (!e.playerId || !e.supporterName) continue;
+    if (!supportersByPlayerId.has(e.playerId)) {
+      supportersByPlayerId.set(e.playerId, new Set());
+    }
+    supportersByPlayerId.get(e.playerId).add(e.supporterName.trim());
+  }
+
+  const supportersByPlayerRows = Array.from(supportersByPlayerId.entries()).map(
+    ([playerId, supporterSet]) => {
+      const player = PLAYERS.find((p) => p.id === playerId);
+      return {
+        playerName: player
+          ? `${player.firstName} ${player.lastName}`
+          : "Unknown",
+        supporters: Array.from(supporterSet).sort(),
+      };
+    }
+  );
+
+  // supporter summary: which dates and total $ (month-based)
+  const supporters = new Map(); // supporterName => { entries: [], totalAmount }
+  for (const e of entries) {
+    if (!e.supporterName) continue;
+    const key = e.supporterName.trim();
+    if (!key) continue;
+    if (!supporters.has(key)) {
+      supporters.set(key, { entries: [], totalAmount: 0 });
+    }
+    const rec = supporters.get(key);
+    rec.entries.push(e);
+    // amount = month number (e.g., all April dates = $4 each)
+    rec.totalAmount += e.month;
+  }
+
+  const supporterSummaryRows = Array.from(supporters.entries()).map(
+    ([name, rec]) => {
+      // sort entries by date
+      const sortedEntries = [...rec.entries].sort((a, b) => {
+        const da = new Date(a.year, a.month - 1, a.day);
+        const db = new Date(b.year, b.month - 1, b.day);
+        return da - db;
+      });
+
+      const dateStrings = sortedEntries.map(
+        (e) => `${e.day}/${e.month}` // e.g. 3/4
+      );
+
+      return {
+        supporterName: name,
+        dates: dateStrings.join(", "),
+        totalAmount: rec.totalAmount,
+      };
+    }
+  );
+
+  // month list for raffle UI
+  const monthsForRaffle = MONTH_NAMES.map((name, idx) => ({
+    name,
+    month: idx + 1,
+  }));
 
   return (
     <section className="admin-panel">
@@ -671,6 +807,81 @@ function AdminPanel({ entries, onTogglePaid, onDelete, onEditEntry }) {
         </div>
       )}
 
+      {/* Raffle winners selection */}
+      <h3 className="admin-summary-title">Monthly Raffle Winners</h3>
+      <p className="admin-note">
+        Choose one winning day per month. Selected dates will be highlighted
+        with a yellow circle on the calendars.
+      </p>
+      <div className="admin-table-wrapper">
+        <table className="admin-table">
+          <thead>
+            <tr>
+              <th>Month</th>
+              <th>Winning Day</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {monthsForRaffle.map((m) => {
+              const key = raffleKey(CURRENT_YEAR, m.month);
+              const selectedDay = raffleWinners[key] || "";
+              const daysInMonth = new Date(
+                CURRENT_YEAR,
+                m.month,
+                0
+              ).getDate();
+              const options = [];
+              for (let d = 1; d <= daysInMonth; d++) {
+                options.push(d);
+              }
+              return (
+                <tr key={m.month}>
+                  <td>{m.name}</td>
+                  <td>
+                    <select
+                      value={selectedDay}
+                      onChange={(e) =>
+                        onSetRaffleWinner(
+                          CURRENT_YEAR,
+                          m.month,
+                          e.target.value ? Number(e.target.value) : null
+                        )
+                      }
+                    >
+                      <option value="">— none —</option>
+                      {options.map((d) => (
+                        <option key={d} value={d}>
+                          {d}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                  <td>
+                    {selectedDay ? (
+                      <button
+                        type="button"
+                        className="link-button"
+                        onClick={() =>
+                          onSetRaffleWinner(CURRENT_YEAR, m.month, null)
+                        }
+                      >
+                        Clear winner
+                      </button>
+                    ) : (
+                      <span style={{ fontSize: "0.8rem", color: "#666" }}>
+                        No winner selected
+                      </span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Player fundraising summary (as before) */}
       <h3 className="admin-summary-title">Player Fundraising Summary</h3>
       {summaryRows.length === 0 ? (
         <p>No days claimed yet.</p>
@@ -702,11 +913,64 @@ function AdminPanel({ entries, onTogglePaid, onDelete, onEditEntry }) {
         </div>
       )}
 
+      {/* Supporters by player */}
+      <h3 className="admin-summary-title">Supporters by Player</h3>
+      {supportersByPlayerRows.length === 0 ? (
+        <p>No supporters yet.</p>
+      ) : (
+        <div className="admin-table-wrapper">
+          <table className="admin-table">
+            <thead>
+              <tr>
+                <th>Player</th>
+                <th>Supporters</th>
+              </tr>
+            </thead>
+            <tbody>
+              {supportersByPlayerRows.map((row) => (
+                <tr key={row.playerName}>
+                  <td>{row.playerName}</td>
+                  <td>{row.supporters.join(", ")}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Supporter summary with totals */}
+      <h3 className="admin-summary-title">
+        Supporter Summary – Dates & Totals
+      </h3>
+      {supporterSummaryRows.length === 0 ? (
+        <p>No supporters yet.</p>
+      ) : (
+        <div className="admin-table-wrapper">
+          <table className="admin-table">
+            <thead>
+              <tr>
+                <th>Supporter</th>
+                <th>Dates</th>
+                <th>Total ($)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {supporterSummaryRows.map((row) => (
+                <tr key={row.supporterName}>
+                  <td>{row.supporterName}</td>
+                  <td>{row.dates}</td>
+                  <td>${row.totalAmount}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
       <p className="admin-note">
-        Use the filter buttons above to quickly see which sponsors have paid.
-        The summary table groups by player and shows how many dates they have
-        claimed. The day-number sum is useful if your fundraiser amount is
-        based on the calendar date.
+        Use these summaries to track who has supported each player and how much
+        each supporter has contributed, assuming the donation amount equals the
+        calendar month number (e.g., all April days = $4 each).
       </p>
     </section>
   );
