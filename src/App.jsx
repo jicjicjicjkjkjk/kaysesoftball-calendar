@@ -265,7 +265,7 @@ export default function App() {
           </div>
           <div className="header-buttons">
             <button className="admin-toggle" onClick={handleAdminToggleClick}>
-              {showAdmin ? "Hide Admin View" : "Show Admin View (Paid Tracking)"}
+              {showAdmin ? "Hide Admin View" : "Show Admin View"}
             </button>
           </div>
         </div>
