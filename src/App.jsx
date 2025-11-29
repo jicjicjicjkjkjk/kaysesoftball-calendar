@@ -16,16 +16,27 @@ const MONTH_NAMES = [
   "December",
 ];
 
+const WEEKDAY_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
 const CURRENT_YEAR = new Date().getFullYear();
 const STORAGE_KEY = "kaysesoftball_calendar_entries_v1";
 
-function buildDaysForMonth(year, monthIndex) {
-  const last = new Date(year, monthIndex + 1, 0);
-  const days = [];
-  for (let d = 1; d <= last.getDate(); d++) {
-    days.push({ day: d });
+function buildCalendarCells(year, monthIndex) {
+  const first = new Date(year, monthIndex, 1);
+  const startOffset = first.getDay(); // 0 = Sun ... 6 = Sat
+  const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+  const cells = [];
+
+  for (let i = 0; i < startOffset; i++) {
+    cells.push(null);
   }
-  return days;
+  for (let d = 1; d <= daysInMonth; d++) {
+    cells.push({ day: d });
+  }
+  while (cells.length % 7 !== 0) {
+    cells.push(null);
+  }
+  return cells;
 }
 
 const makeId = () =>
@@ -37,6 +48,9 @@ export default function App() {
   const [showForm, setShowForm] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
   const [selectedMonthIndex, setSelectedMonthIndex] = useState(null); // null = overview
+  const [viewedEntry, setViewedEntry] = useState(null);
+  const [showEntryDetails, setShowEntryDetails] = useState(false);
+  const [editingEntry, setEditingEntry] = useState(null);
 
   // Load from localStorage on first render
   useEffect(() => {
@@ -60,12 +74,20 @@ export default function App() {
   }, [entries]);
 
   const handleOpenDay = (year, month, day) => {
+    setSelectedDay({ year, month, day });
+    setShowForm(true);
+  };
+
+  const handleDayClick = (year, month, day) => {
     const existing = entries.find(
       (e) => e.year === year && e.month === month && e.day === day
     );
-    if (existing) return; // already taken
-    setSelectedDay({ year, month, day });
-    setShowForm(true);
+    if (existing) {
+      setViewedEntry(existing);
+      setShowEntryDetails(true);
+    } else {
+      handleOpenDay(year, month, day);
+    }
   };
 
   const handleSubmitEntry = (formValues) => {
@@ -104,6 +126,17 @@ export default function App() {
 
   const handleBackToOverview = () => {
     setSelectedMonthIndex(null);
+  };
+
+  const handleStartEditEntry = (entry) => {
+    setEditingEntry(entry);
+  };
+
+  const handleSaveEditedEntry = (updated) => {
+    setEntries((prev) =>
+      prev.map((e) => (e.id === updated.id ? updated : e))
+    );
+    setEditingEntry(null);
   };
 
   return (
@@ -165,7 +198,7 @@ export default function App() {
               monthIndex={selectedMonthIndex}
               monthName={MONTH_NAMES[selectedMonthIndex]}
               entries={entries}
-              onDayClick={handleOpenDay}
+              onDayClick={handleDayClick}
             />
           </div>
         )}
@@ -179,11 +212,27 @@ export default function App() {
         />
       )}
 
+      {showEntryDetails && viewedEntry && (
+        <EntryDetailsModal
+          entry={viewedEntry}
+          onClose={() => setShowEntryDetails(false)}
+        />
+      )}
+
       {showAdmin && (
         <AdminPanel
           entries={entries}
           onTogglePaid={handleTogglePaid}
           onDelete={handleDeleteEntry}
+          onEditEntry={handleStartEditEntry}
+        />
+      )}
+
+      {editingEntry && (
+        <EditEntryModal
+          entry={editingEntry}
+          onClose={() => setEditingEntry(null)}
+          onSave={handleSaveEditedEntry}
         />
       )}
 
@@ -196,7 +245,7 @@ export default function App() {
 
 /* ---------- PUBLIC VIEW COMPONENTS ---------- */
 
-// Small month “summary” tiles
+// Small month “summary” tiles (3 x 4 grid)
 function MonthOverviewGrid({ year, entries, onSelectMonth }) {
   return (
     <div className="calendar-overview-grid">
@@ -215,9 +264,9 @@ function MonthOverviewGrid({ year, entries, onSelectMonth }) {
 }
 
 function MonthOverviewTile({ year, monthIndex, monthName, entries, onClick }) {
-  const days = buildDaysForMonth(year, monthIndex);
+  const cells = buildCalendarCells(year, monthIndex);
 
-  // build quick lookup
+  // quick lookup of taken days
   const takenSet = new Set(
     entries
       .filter(
@@ -230,15 +279,29 @@ function MonthOverviewTile({ year, monthIndex, monthName, entries, onClick }) {
     <button type="button" className="month-overview-tile" onClick={onClick}>
       <div className="month-overview-header">
         <span className="month-name">{monthName}</span>
-        <span className="month-overview-caption">Tap to view</span>
+        <span className="month-overview-caption">Tap to view month</span>
+      </div>
+      <div className="overview-weekdays">
+        {WEEKDAY_SHORT.map((d) => (
+          <span key={d} className="overview-weekday">
+            {d}
+          </span>
+        ))}
       </div>
       <div className="overview-day-grid">
-        {days.map((d) => {
-          const isTaken = takenSet.has(d.day);
+        {cells.map((cell, idx) => {
+          if (cell === null) {
+            return <div key={idx} className="overview-day empty" />;
+          }
+          const isTaken = takenSet.has(cell.day);
           const className = `overview-day ${
             isTaken ? "overview-day-taken" : "overview-day-available"
           }`;
-          return <div key={d.day} className={className} />;
+          return (
+            <div key={idx} className={className}>
+              <span className="overview-day-number">{cell.day}</span>
+            </div>
+          );
         })}
       </div>
       <div className="overview-legend">
@@ -255,63 +318,61 @@ function MonthOverviewTile({ year, monthIndex, monthName, entries, onClick }) {
 
 // Big full calendar for one month
 function BigMonthCalendar({ year, monthIndex, monthName, entries, onDayClick }) {
-  const allDays = buildDaysForMonth(year, monthIndex);
-
-  const daysWithEntries = allDays.map((d) => {
-    const entry = entries.find(
-      (e) => e.year === year && e.month === monthIndex + 1 && e.day === d.day
-    );
-    return { ...d, entry };
-  });
+  const cells = buildCalendarCells(year, monthIndex);
 
   return (
     <div className="big-month-card">
       <h2 className="big-month-title">{monthName}</h2>
-      <div className="big-day-grid">
-        {daysWithEntries.map(({ day, entry }) => (
-          <BigDayCell
-            key={day}
-            year={year}
-            monthIndex={monthIndex}
-            day={day}
-            entry={entry}
-            onClick={onDayClick}
-          />
+      <div className="big-weekdays">
+        {WEEKDAY_SHORT.map((d) => (
+          <span key={d} className="big-weekday">
+            {d}
+          </span>
         ))}
+      </div>
+      <div className="big-day-grid">
+        {cells.map((cell, idx) => {
+          if (cell === null) {
+            return <div key={idx} className="big-day-cell empty" />;
+          }
+          const entry = entries.find(
+            (e) =>
+              e.year === year &&
+              e.month === monthIndex + 1 &&
+              e.day === cell.day
+          );
+          const isTaken = !!entry;
+          const player = isTaken && PLAYERS.find((p) => p.id === entry.playerId);
+          const playerName = player ? player.firstName : "Player";
+
+          const label = isTaken ? `${cell.day}: ${playerName}` : `${cell.day}`;
+
+          const className = `big-day-cell ${
+            isTaken ? "big-day-taken" : "big-day-available"
+          }`;
+
+          return (
+            <button
+              type="button"
+              key={idx}
+              className={className}
+              onClick={() => onDayClick(year, monthIndex + 1, cell.day)}
+            >
+              <span className="big-day-label">{label}</span>
+              {isTaken && (
+                <span className="big-day-supporter">
+                  {entry.supporterName}
+                </span>
+              )}
+            </button>
+          );
+        })}
       </div>
     </div>
   );
 }
 
-function BigDayCell({ year, monthIndex, day, entry, onClick }) {
-  const isTaken = !!entry;
-  const player = isTaken && PLAYERS.find((p) => p.id === entry.playerId);
-  const playerName = player ? player.firstName : "Player";
-
-  const label = isTaken
-    ? `${day}: ${playerName} – ${entry.supporterName}`
-    : `${day}: Available`;
-
-  const className = `big-day-cell ${
-    isTaken ? "big-day-taken" : "big-day-available"
-  }`;
-
-  return (
-    <button
-      type="button"
-      className={className}
-      onClick={() => {
-        if (!isTaken) {
-          onClick(year, monthIndex + 1, day);
-        }
-      }}
-    >
-      <span>{label}</span>
-    </button>
-  );
-}
-
-/* ---------- MODAL FORM ---------- */
+/* ---------- MODAL FORM & ENTRY DETAILS ---------- */
 
 function SupporterFormModal({ dayInfo, onClose, onSubmit }) {
   const [playerId, setPlayerId] = useState("");
@@ -398,9 +459,48 @@ function SupporterFormModal({ dayInfo, onClose, onSubmit }) {
   );
 }
 
-/* ---------- ADMIN PANEL ---------- */
+function EntryDetailsModal({ entry, onClose }) {
+  const monthName = MONTH_NAMES[entry.month - 1];
+  const player = PLAYERS.find((p) => p.id === entry.playerId);
+  const playerName = player
+    ? `${player.firstName} ${player.lastName}`
+    : "Unknown player";
 
-function AdminPanel({ entries, onTogglePaid, onDelete }) {
+  return (
+    <div className="modal-backdrop">
+      <div className="modal">
+        <h2>
+          {monthName} {entry.day}
+        </h2>
+        <p className="modal-text">
+          This date has already been claimed. Here are the details:
+        </p>
+        <div className="entry-details">
+          <p>
+            <strong>Player:</strong> {playerName}
+          </p>
+          <p>
+            <strong>Supporter:</strong> {entry.supporterName}
+          </p>
+          {entry.note && (
+            <p>
+              <strong>Note:</strong> {entry.note}
+            </p>
+          )}
+        </div>
+        <div className="modal-buttons">
+          <button type="button" onClick={onClose}>
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------- ADMIN PANEL & EDIT MODAL ---------- */
+
+function AdminPanel({ entries, onTogglePaid, onDelete, onEditEntry }) {
   const [filter, setFilter] = useState("all"); // all | paid | unpaid
 
   // sort by date
@@ -487,6 +587,7 @@ function AdminPanel({ entries, onTogglePaid, onDelete }) {
                 <th>Note</th>
                 <th>Phone (private)</th>
                 <th>Paid?</th>
+                <th>Edit</th>
                 <th>Clear</th>
               </tr>
             </thead>
@@ -511,6 +612,15 @@ function AdminPanel({ entries, onTogglePaid, onDelete }) {
                         checked={e.paid}
                         onChange={() => onTogglePaid(e.id)}
                       />
+                    </td>
+                    <td>
+                      <button
+                        type="button"
+                        className="link-button"
+                        onClick={() => onEditEntry(e)}
+                      >
+                        Edit
+                      </button>
                     </td>
                     <td>
                       <button
@@ -567,5 +677,98 @@ function AdminPanel({ entries, onTogglePaid, onDelete }) {
         based on the calendar date.
       </p>
     </section>
+  );
+}
+
+function EditEntryModal({ entry, onClose, onSave }) {
+  const [playerId, setPlayerId] = useState(entry.playerId || "");
+  const [supporterName, setSupporterName] = useState(entry.supporterName || "");
+  const [note, setNote] = useState(entry.note || "");
+  const [phone, setPhone] = useState(entry.phone || "");
+  const [paid, setPaid] = useState(!!entry.paid);
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    onSave({
+      ...entry,
+      playerId,
+      supporterName,
+      note,
+      phone,
+      paid,
+    });
+  };
+
+  const monthName = MONTH_NAMES[entry.month - 1];
+
+  return (
+    <div className="modal-backdrop">
+      <div className="modal">
+        <h2>
+          Edit Entry – {monthName} {entry.day}
+        </h2>
+        <form className="modal-form" onSubmit={handleSubmit}>
+          <label>
+            Player
+            <select
+              value={playerId}
+              onChange={(e) => setPlayerId(e.target.value)}
+              required
+            >
+              <option value="">Select a player…</option>
+              {PLAYERS.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.firstName} {p.lastName} #{p.number}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label>
+            Supporter Name
+            <input
+              type="text"
+              value={supporterName}
+              onChange={(e) => setSupporterName(e.target.value)}
+              required
+            />
+          </label>
+
+          <label>
+            Note
+            <textarea
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              rows={3}
+            />
+          </label>
+
+          <label>
+            Phone (private)
+            <input
+              type="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+            />
+          </label>
+
+          <label className="inline-label">
+            <input
+              type="checkbox"
+              checked={paid}
+              onChange={(e) => setPaid(e.target.checked)}
+            />{" "}
+            Mark as paid
+          </label>
+
+          <div className="modal-buttons">
+            <button type="button" onClick={onClose}>
+              Cancel
+            </button>
+            <button type="submit">Save changes</button>
+          </div>
+        </form>
+      </div>
+    </div>
   );
 }
