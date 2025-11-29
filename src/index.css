@@ -388,13 +388,14 @@ a:hover {
 }
 
 .big-day-available {
-  background: #e8f5e9;
-  border-color: #c8e6c9;
+  background: var(--thunder-teal-light);
+  border-color: var(--thunder-teal);
 }
 
 .big-day-taken {
-  background: #fde0dc;
-  border-color: #ffccbc;
+  background: #000000;
+  border-color: #000000;
+  color: #ffffff;
 }
 
 .big-day-raffle {
