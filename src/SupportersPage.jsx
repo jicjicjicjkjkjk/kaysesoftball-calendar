@@ -1,5 +1,4 @@
-import React, { useEffect, useState, useMemo } from "react";
-import { Link } from "react-router-dom";
+import React, { useState, useEffect } from "react";
 import { PLAYERS } from "./players";
 
 const STORAGE_KEY = "kaysesoftball_calendar_entries_v1";
@@ -20,371 +19,300 @@ const MONTH_NAMES = [
   "December",
 ];
 
+function formatDate(entry) {
+  const monthName = MONTH_NAMES[entry.month - 1] || "";
+  return `${monthName} ${entry.day}, ${entry.year}`;
+}
+
+// Same meta logic as Admin, but we only care about "Paid" vs "Unpaid"
+function getPaymentMeta(entry) {
+  const owed = entry.day; // $ owed for this date
+  const methodRaw = entry.paymentMethod || "unpaid";
+  const amount = Number(entry.paymentAmount || 0);
+
+  const method =
+    methodRaw === "zelle" || methodRaw === "venmo" ? methodRaw : "unpaid";
+
+  const isPaid = method !== "unpaid" && amount >= owed;
+
+  return {
+    owed,
+    amount,
+    isPaid,
+    label: isPaid ? "Paid" : "Unpaid",
+  };
+}
+
 export default function SupportersPage() {
   const [entries, setEntries] = useState([]);
-  const [selectedPlayerId, setSelectedPlayerId] = useState(null);
-  const [selectedSupporter, setSelectedSupporter] = useState(null);
   const [pinOverrides, setPinOverrides] = useState({});
+  const [selectedPlayerId, setSelectedPlayerId] = useState("");
+  const [enteredPin, setEnteredPin] = useState("");
+  const [pinVerified, setPinVerified] = useState(false);
+  const [pinError, setPinError] = useState("");
+  const [sortConfig, setSortConfig] = useState({
+    key: "date", // "date" | "supporter" | "status"
+    direction: "asc",
+  });
 
-  // Load entries + pin overrides from localStorage
+  // Load entries and PIN overrides
   useEffect(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) {
         setEntries(JSON.parse(raw));
       }
+    } catch (err) {
+      console.error("Failed to load entries on Supporters page", err);
+    }
 
+    try {
       const rawPins = localStorage.getItem(PIN_STORAGE_KEY);
       if (rawPins) {
         setPinOverrides(JSON.parse(rawPins));
       }
     } catch (err) {
-      console.error("Failed to load entries or pins on supporters page", err);
+      console.error("Failed to load PIN overrides on Supporters page", err);
     }
   }, []);
 
-  // PLAYERS with effectivePin (override if set)
-  const effectivePlayers = useMemo(
-    () =>
-      PLAYERS.map((p) => ({
-        ...p,
-        effectivePin: pinOverrides[p.id] ?? p.pin ?? "",
-      })),
-    [pinOverrides]
+  const effectivePlayers = PLAYERS.map((p) => ({
+    ...p,
+    effectivePin: pinOverrides[p.id] ?? p.pin ?? "",
+  }));
+
+  const selectedPlayer = effectivePlayers.find(
+    (p) => p.id === selectedPlayerId
   );
 
-  // Players sorted alphabetical by first name
-  const playersSorted = useMemo(
-    () =>
-      [...effectivePlayers].sort((a, b) =>
-        a.firstName.localeCompare(b.firstName)
-      ),
-    [effectivePlayers]
-  );
+  const playerLabel = selectedPlayer
+    ? `${selectedPlayer.firstName} ${selectedPlayer.lastName} #${selectedPlayer.number}`
+    : "Select a player";
 
-  const handleSelectPlayer = (playerId) => {
-    setSelectedPlayerId(playerId);
-    setSelectedSupporter(null);
-  };
-
-  // Entries for selected player
-  const entriesForPlayer = useMemo(() => {
-    if (!selectedPlayerId) return [];
-    return entries.filter((e) => e.playerId === selectedPlayerId);
-  }, [entries, selectedPlayerId]);
-
-  // Supporters for selected player (with count & total)
-  const supportersForPlayer = useMemo(() => {
-    if (!selectedPlayerId) return [];
-    const map = new Map(); // supporterName -> { count, total, entries }
-
-    for (const e of entriesForPlayer) {
-      const name = (e.supporterName || "").trim();
-      if (!name) continue;
-      if (!map.has(name)) {
-        map.set(name, { count: 0, total: 0, entries: [] });
-      }
-      const rec = map.get(name);
-      rec.count += 1;
-      rec.total += e.day; // sum of date numbers
-      rec.entries.push(e);
-    }
-
-    const rows = Array.from(map.entries()).map(([name, rec]) => ({
-      supporterName: name,
-      count: rec.count,
-      total: rec.total,
-      entries: rec.entries,
-    }));
-
-    rows.sort((a, b) => a.supporterName.localeCompare(b.supporterName));
-    return rows;
-  }, [entriesForPlayer]);
-
-  // When you click on a supporter in the middle column
-  const handleSelectSupporter = (supporterName) => {
-    if (!selectedPlayerId) return;
-
-    const relevant = entriesForPlayer.filter(
-      (e) => (e.supporterName || "").trim() === supporterName.trim()
-    );
-    if (relevant.length === 0) {
-      alert("No entries found for this supporter.");
+  const handleVerifyPin = () => {
+    if (!selectedPlayerId) {
+      setPinError("Please select a player first.");
+      setPinVerified(false);
       return;
     }
-
-    const phoneOrPin = window.prompt(
-      "To view details for this supporter, enter the cell phone number used when purchasing dates (full or last 4 digits), OR the player's 4-digit PIN."
-    );
-
-    if (phoneOrPin === null) {
-      // cancelled
-      return;
-    }
-
-    const cleanedInput = phoneOrPin.replace(/\D/g, "");
-    if (!cleanedInput) {
-      alert("Phone number or PIN cannot be blank.");
-      return;
-    }
-
-    // Look up player PIN using effectivePlayers (so overrides work)
-    const player = effectivePlayers.find((p) => p.id === selectedPlayerId);
-    const playerPin = player?.effectivePin;
-
-    let hasMatch = false;
-
-    // Option 1: phone match (full or last digits)
-    if (cleanedInput.length >= 4) {
-      hasMatch = relevant.some((e) => {
-        const stored = (e.phone || "").replace(/\D/g, "");
-        if (!stored) return false;
-        return stored === cleanedInput || stored.endsWith(cleanedInput);
-      });
-    }
-
-    // Option 2: 4-digit player PIN
-    if (!hasMatch && cleanedInput.length === 4 && playerPin) {
-      if (cleanedInput === playerPin) {
-        hasMatch = true;
-      }
-    }
-
-    if (!hasMatch) {
-      alert(
-        "Sorry, that code does not match what we have on file. Please use the phone number used when supporting, or the player's 4-digit PIN."
+    const expectedPin = (selectedPlayer?.effectivePin || "").trim();
+    if (!expectedPin) {
+      setPinError(
+        "No PIN is set for this player yet. Please contact Coach Justin."
       );
+      setPinVerified(false);
       return;
     }
-
-    setSelectedSupporter(supporterName);
+    if (enteredPin.trim() !== expectedPin) {
+      setPinError("Incorrect PIN. Please try again.");
+      setPinVerified(false);
+      return;
+    }
+    setPinError("");
+    setPinVerified(true);
   };
 
-  // Details for the currently-selected supporter + player
-  const supporterDetails = useMemo(() => {
-    if (!selectedPlayerId || !selectedSupporter) return null;
+  // Filter entries to this player once PIN is verified
+  const playerEntries = pinVerified
+    ? entries.filter((e) => e.playerId === selectedPlayerId)
+    : [];
 
-    const player = effectivePlayers.find((p) => p.id === selectedPlayerId);
-    const relevant = entriesForPlayer.filter(
-      (e) => (e.supporterName || "").trim() === selectedSupporter.trim()
-    );
-    if (relevant.length === 0) return null;
+  // Build rows with meta + date object for sorting
+  const rowsWithMeta = playerEntries.map((e) => {
+    const meta = getPaymentMeta(e);
+    const dateObj = new Date(e.year, e.month - 1, e.day);
+    return { entry: e, meta, dateObj };
+  });
 
-    const sorted = [...relevant].sort((a, b) => {
-      const da = new Date(a.year, a.month - 1, a.day);
-      const db = new Date(b.year, b.month - 1, b.day);
-      return da - db;
+  const handleSort = (key) => {
+    setSortConfig((prev) => {
+      if (prev.key === key) {
+        return {
+          key,
+          direction: prev.direction === "asc" ? "desc" : "asc",
+        };
+      }
+      return { key, direction: "asc" };
     });
+  };
 
-    const dates = sorted.map((e) => ({
-      id: e.id,
-      year: e.year,
-      monthName: MONTH_NAMES[e.month - 1],
-      day: e.day,
-    }));
+  const sortIndicator = (key) => {
+    if (sortConfig.key !== key) return "";
+    return sortConfig.direction === "asc" ? " ▲" : " ▼";
+  };
 
-    const total = sorted.reduce((sum, e) => sum + e.day, 0);
-    const totalPaid = sorted.reduce(
-      (sum, e) => sum + Number(e.paymentAmount || 0),
-      0
-    );
-
-    // First non-empty phone on file for this supporter
-    const phoneOnFile =
-      sorted.find((e) => (e.phone || "").trim().length > 0)?.phone || "";
-
-    return {
-      playerName: player
-        ? `${player.firstName} ${player.lastName}`
-        : "Unknown player",
-      supporterName: selectedSupporter,
-      dates,
-      total,
-      totalPaid,
-      phoneOnFile,
-    };
-  }, [selectedPlayerId, selectedSupporter, entriesForPlayer, effectivePlayers]);
-
-  const currentPlayer =
-    selectedPlayerId && effectivePlayers.find((p) => p.id === selectedPlayerId);
+  const sortedRows = [...rowsWithMeta].sort((a, b) => {
+    const dir = sortConfig.direction === "asc" ? 1 : -1;
+    switch (sortConfig.key) {
+      case "date":
+        if (a.dateObj < b.dateObj) return -1 * dir;
+        if (a.dateObj > b.dateObj) return 1 * dir;
+        return 0;
+      case "supporter": {
+        const sa = (a.entry.supporterName || "").toLowerCase();
+        const sb = (b.entry.supporterName || "").toLowerCase();
+        if (sa < sb) return -1 * dir;
+        if (sa > sb) return 1 * dir;
+        return 0;
+      }
+      case "status": {
+        const sa = (a.meta.label || "").toLowerCase();
+        const sb = (b.meta.label || "").toLowerCase();
+        if (sa < sb) return -1 * dir;
+        if (sa > sb) return 1 * dir;
+        return 0;
+      }
+      default:
+        return 0;
+    }
+  });
 
   return (
-    <div className="page supporters-page">
-      <header className="header supporters-header">
-        <div className="supporters-header-top">
-          <div className="hero-logo-wrap small-logo">
-            <img
-              src="/thunder-logo.jpg"
-              alt="Arlington Heights Thunder Fastpitch"
-              className="hero-logo"
-            />
-          </div>
-          <div className="supporters-header-text">
-            <h1>Thunder Supporters</h1>
-            <p>
-              Explore which supporters have purchased dates in honor of each
-              Thunder 12U Teal player. To view detailed dates and totals for a
-              supporter, you&apos;ll need either the cell phone number used when
-              the dates were purchased or that player&apos;s 4-digit PIN.
-            </p>
-          </div>
-        </div>
-
-        <div className="header-bottom-row">
-          <div className="header-links">
-            <Link to="/" className="nav-link">
-              ← Back to Calendar
-            </Link>
-          </div>
-        </div>
+    <div className="supporters-page page">
+      <header className="supporters-header">
+        <h1>Thunder 12U Teal – Supporters</h1>
+        <p className="supporters-intro">
+          Use this page to confirm the dates you’ve purchased and see the
+          fundraising progress for a specific player.
+        </p>
+        <p className="supporters-note">
+          Families: choose your player below and enter their 4-digit PIN to
+          unlock their fundraising details.
+        </p>
       </header>
 
-      <main className="supporters-main">
-        <section className="supporters-layout">
-          {/* Left column: players */}
-          <aside className="supporters-column players-column">
-            <h2 className="column-title">Players</h2>
-            <ul className="players-list">
-              {playersSorted.map((p) => (
-                <li key={p.id}>
-                  <button
-                    type="button"
-                    className={
-                      selectedPlayerId === p.id
-                        ? "players-list-item active"
-                        : "players-list-item"
-                    }
-                    onClick={() => handleSelectPlayer(p.id)}
-                  >
-                    {p.firstName} {p.lastName}
-                  </button>
-                </li>
+      {/* Player + PIN unlock */}
+      <section className="supporters-pin-section">
+        <div className="supporters-pin-row">
+          <label className="supporters-label">
+            Player
+            <select
+              value={selectedPlayerId}
+              onChange={(e) => {
+                setSelectedPlayerId(e.target.value);
+                setPinVerified(false);
+                setPinError("");
+              }}
+            >
+              <option value="">Select a player…</option>
+              {effectivePlayers.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.firstName} {p.lastName} #{p.number}
+                </option>
               ))}
-            </ul>
-          </aside>
+            </select>
+          </label>
 
-          {/* Middle column: supporters for chosen player */}
-          <section className="supporters-column supporters-column-middle">
-            <h2 className="column-title">
-              {currentPlayer
-                ? `Supporters for ${currentPlayer.firstName} ${currentPlayer.lastName}`
-                : "Supporters"}
+          <label className="supporters-label">
+            PIN
+            <input
+              type="password"
+              value={enteredPin}
+              onChange={(e) => setEnteredPin(e.target.value)}
+              maxLength={4}
+              inputMode="numeric"
+              placeholder="4-digit PIN"
+            />
+          </label>
+
+          <button
+            type="button"
+            className="supporters-unlock-button"
+            onClick={handleVerifyPin}
+          >
+            Unlock
+          </button>
+        </div>
+
+        {pinError && <p className="supporters-error">{pinError}</p>}
+
+        {pinVerified && selectedPlayer && (
+          <p className="supporters-success">
+            Fundraising unlocked for <strong>{playerLabel}</strong>.
+          </p>
+        )}
+      </section>
+
+      {/* Supporters list and fundraising table */}
+      {pinVerified && selectedPlayer && (
+        <>
+          {/* Simple supporters list */}
+          <section className="supporters-list-section">
+            <h2>
+              Supporters for {selectedPlayer.firstName}{" "}
+              {selectedPlayer.lastName} #{selectedPlayer.number}
             </h2>
-
-            {!selectedPlayerId && (
-              <p className="supporters-hint">
-                Select a player on the left to see their supporters.
-              </p>
-            )}
-
-            {selectedPlayerId && supportersForPlayer.length === 0 && (
-              <p className="supporters-hint">
-                No supporters have purchased dates for this player yet.
-              </p>
-            )}
-
-            {selectedPlayerId && supportersForPlayer.length > 0 && (
+            {playerEntries.length === 0 ? (
+              <p>No dates have been claimed for this player yet.</p>
+            ) : (
               <ul className="supporters-list">
-                {supportersForPlayer.map((row) => (
-                  <li key={row.supporterName}>
-                    <button
-                      type="button"
-                      className={
-                        selectedSupporter === row.supporterName
-                          ? "supporters-list-item active"
-                          : "supporters-list-item"
-                      }
-                      onClick={() => handleSelectSupporter(row.supporterName)}
-                    >
-                      <div className="supporter-name">
-                        {row.supporterName}
-                      </div>
-                      <div className="supporter-sub">
-                        {row.count} date
-                        {row.count !== 1 ? "s" : ""}
-                      </div>
-                    </button>
+                {playerEntries.map((e) => (
+                  <li key={e.id} className="supporter-item">
+                    <span className="supporter-date">{formatDate(e)}</span>
+                    <span className="supporter-name">
+                      {e.supporterName || "Unnamed supporter"}
+                    </span>
+                    {e.note && (
+                      <span className="supporter-note">“{e.note}”</span>
+                    )}
                   </li>
                 ))}
               </ul>
             )}
           </section>
 
-          {/* Right column: details for selected supporter */}
-          <section className="supporters-column supporters-column-right">
-            <h2 className="column-title">Supporter Details</h2>
+          {/* Fundraising table (sortable) */}
+          <section className="supporters-table-section">
+            <h2>Fundraising Details for Your Player</h2>
+            <p className="supporters-note">
+              This table shows every calendar date purchased in support of your
+              player and whether each date is marked as paid.
+            </p>
 
-            {!selectedSupporter && (
-              <p className="supporters-hint">
-                Click a supporter in the middle column and enter their phone
-                number or the player&apos;s 4-digit PIN to view their dates and
-                totals.
-              </p>
-            )}
-
-            {supporterDetails && (
-              <div className="supporter-details-card">
-                <p>
-                  <strong>Supporter:</strong>{" "}
-                  {supporterDetails.supporterName}
-                </p>
-                <p>
-                  <strong>Player Supported:</strong>{" "}
-                  {supporterDetails.playerName}
-                </p>
-                <p>
-                  <strong>Phone on file:</strong>{" "}
-                  {supporterDetails.phoneOnFile || "Not provided"}
-                </p>
-
-                <h3>Dates Purchased</h3>
-                <ul className="supporter-dates-list">
-                  {supporterDetails.dates.map((d) => (
-                    <li key={d.id}>
-                      {d.monthName} {d.day}, {d.year}
-                    </li>
-                  ))}
-                </ul>
-
-                <p className="supporter-total">
-                  <strong>Total owed (sum of dates):</strong>{" "}
-                  ${supporterDetails.total}
-                </p>
-
-                {supporterDetails.totalPaid >= supporterDetails.total ? (
-                  <p className="supporter-total">
-                    <strong>Thank you!</strong> Payment has been received
-                    in full.
-                  </p>
-                ) : supporterDetails.totalPaid > 0 ? (
-                  <p className="supporter-total">
-                    You have paid ${supporterDetails.totalPaid} so far.
-                    Remaining balance: $
-                    {supporterDetails.total - supporterDetails.totalPaid}.
-                    Please remit via Zelle (630-698-8769) or Venmo
-                    (@Justin-Kayse).
-                  </p>
-                ) : (
-                  <p className="supporter-total">
-                    Please remit ${supporterDetails.total} via Zelle
-                    (630-698-8769) or Venmo (@Justin-Kayse).
-                  </p>
-                )}
+            {sortedRows.length === 0 ? (
+              <p>No fundraising entries yet.</p>
+            ) : (
+              <div className="supporters-table-wrapper">
+                <table className="supporters-table">
+                  <thead>
+                    <tr>
+                      <th
+                        onClick={() => handleSort("date")}
+                        className="sortable-col"
+                      >
+                        Date{sortIndicator("date")}
+                      </th>
+                      <th
+                        onClick={() => handleSort("supporter")}
+                        className="sortable-col"
+                      >
+                        Supporter{sortIndicator("supporter")}
+                      </th>
+                      <th>Note</th>
+                      <th
+                        onClick={() => handleSort("status")}
+                        className="sortable-col"
+                      >
+                        Payment status{sortIndicator("status")}
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sortedRows.map(({ entry, meta }) => (
+                      <tr key={entry.id}>
+                        <td>{formatDate(entry)}</td>
+                        <td>{entry.supporterName}</td>
+                        <td>{entry.note}</td>
+                        <td>{meta.label}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </section>
-        </section>
-      </main>
-
-      <footer className="footer">
-        <div className="footer-contact">
-          <strong>Questions?</strong>{" "}
-          <a href="mailto:jkayse@hotmail.com">Email Coach Justin</a>
-        </div>
-        <small>
-          © {new Date().getFullYear()} Kayse Softball • kaysesoftball.com
-        </small>
-      </footer>
+        </>
+      )}
     </div>
   );
 }
