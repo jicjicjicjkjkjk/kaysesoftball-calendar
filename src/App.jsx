@@ -18,13 +18,13 @@ const MONTH_NAMES = [
 ];
 
 const WEEKDAY_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
 const CURRENT_YEAR = new Date().getFullYear();
 
 const STORAGE_KEY = "kaysesoftball_calendar_entries_v1";
 const RAFFLE_KEY = "kaysesoftball_calendar_raffle_v1";
 const PIN_STORAGE_KEY = "kaysesoftball_player_pins_v1";
 
-// Build a grid of cells for a month (with leading/trailing blanks)
 function buildCalendarCells(year, monthIndex) {
   const first = new Date(year, monthIndex, 1);
   const startOffset = first.getDay(); // 0 = Sun ... 6 = Sat
@@ -48,10 +48,6 @@ const makeId = () =>
 
 const raffleKey = (year, month) => `${year}-${month}`;
 
-/* ------------------------------------------------------------------ */
-/*  MAIN APP                                                           */
-/* ------------------------------------------------------------------ */
-
 export default function App() {
   const [entries, setEntries] = useState([]);
   const [selectedDay, setSelectedDay] = useState(null); // {year,month,day}
@@ -63,7 +59,7 @@ export default function App() {
   const [showEntryDetails, setShowEntryDetails] = useState(false);
   const [editingEntry, setEditingEntry] = useState(null);
   const [hasAdminAccess, setHasAdminAccess] = useState(false);
-  const [raffleWinners, setRaffleWinners] = useState({}); // { "2025-4": 7 }
+  const [raffleWinners, setRaffleWinners] = useState({});
   const [lastSupporterValues, setLastSupporterValues] = useState({
     supporterName: "",
     playerId: "",
@@ -71,14 +67,15 @@ export default function App() {
     phone: "",
   });
 
-  // We keep one copy of pinOverrides here mainly so this file is the single
-  // source of PIN key name; AdminPanel also reads/writes from localStorage.
   const [pinOverrides, setPinOverrides] = useState({});
 
+  // Load player PIN overrides for supporters-page PIN usage
   useEffect(() => {
     try {
       const raw = localStorage.getItem(PIN_STORAGE_KEY);
-      if (raw) setPinOverrides(JSON.parse(raw));
+      if (raw) {
+        setPinOverrides(JSON.parse(raw));
+      }
     } catch (e) {
       console.error("Failed to load pin overrides", e);
     }
@@ -92,24 +89,28 @@ export default function App() {
     }
   }, [pinOverrides]);
 
-  // Load entries + raffle winners from localStorage
+  // Load calendar entries + raffle winners
   useEffect(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) setEntries(JSON.parse(raw));
+      if (raw) {
+        setEntries(JSON.parse(raw));
+      }
     } catch (err) {
       console.error("Failed to load entries", err);
     }
 
     try {
       const rawR = localStorage.getItem(RAFFLE_KEY);
-      if (rawR) setRaffleWinners(JSON.parse(rawR));
+      if (rawR) {
+        setRaffleWinners(JSON.parse(rawR));
+      }
     } catch (err) {
       console.error("Failed to load raffle winners", err);
     }
   }, []);
 
-  // Persist entries
+  // Save entries whenever they change
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
@@ -118,7 +119,7 @@ export default function App() {
     }
   }, [entries]);
 
-  // Persist raffle winners
+  // Save raffle winners whenever they change
   useEffect(() => {
     try {
       localStorage.setItem(RAFFLE_KEY, JSON.stringify(raffleWinners));
@@ -126,8 +127,6 @@ export default function App() {
       console.error("Failed to save raffle winners", err);
     }
   }, [raffleWinners]);
-
-  /* ------------------------- EVENT HANDLERS ------------------------ */
 
   const handleDayClick = (year, month, day) => {
     const existing = entries.find(
@@ -159,9 +158,10 @@ export default function App() {
       supporterName: formValues.supporterName,
       note: formValues.note || "",
       phone: formValues.phone || "",
+      // payment fields
       paymentMethod: "unpaid", // "unpaid" | "zelle" | "venmo"
       paymentAmount: 0,
-      paid: false, // legacy flag
+      paid: false, // legacy compatibility
       createdAt: new Date().toISOString(),
     };
 
@@ -189,14 +189,16 @@ export default function App() {
   };
 
   const handleSaveEditedEntry = (updated) => {
-    setEntries((prev) => prev.map((e) => (e.id === updated.id ? updated : e)));
+    setEntries((prev) =>
+      prev.map((e) => (e.id === updated.id ? updated : e))
+    );
     setEditingEntry(null);
   };
 
   const handleAdminToggleClick = () => {
     if (!hasAdminAccess) {
       const value = window.prompt("Coach password:");
-      if (value === null) return;
+      if (value === null) return; // cancelled
       if (value !== "thunderboom") {
         alert("Incorrect password.");
         return;
@@ -210,7 +212,7 @@ export default function App() {
     setRaffleWinners((prev) => {
       const key = raffleKey(year, month);
       const next = { ...prev };
-      if (!dayOrNull) {
+      if (dayOrNull == null || dayOrNull === "") {
         delete next[key];
       } else {
         next[key] = dayOrNull;
@@ -218,8 +220,6 @@ export default function App() {
       return next;
     });
   };
-
-  /* ----------------------------- RENDER ---------------------------- */
 
   return (
     <div className="page">
@@ -234,10 +234,8 @@ export default function App() {
               />
             </div>
             <div className="hero-text">
-              <h1>Thunder 12U Teal Calendar Fundraiser</h1>
-
-              <p className="social-note">
-                Follow along with our season on{" "}
+              <p className="social-line">
+                Follow along on our social media!{" "}
                 <a
                   href="https://www.instagram.com/thunder.fastpitch.12uteal?igsh=MWh0a3F1bmx3ZGw5eA=="
                   target="_blank"
@@ -245,42 +243,41 @@ export default function App() {
                 >
                   @thunder.fastpitch.12uteal
                 </a>
-                !
               </p>
-
+              <h1>Thunder 12U Teal Calendar Fundraiser</h1>
               <p>
                 As a <strong>supporter</strong>, you are buying{" "}
                 <strong>raffle tickets</strong> by choosing calendar dates. The
                 number on each date is the number of tickets you receive for
-                that month&apos;s <strong>$100 drawing</strong>. You also choose
-                which player you&apos;re supporting so our players and coaches
-                know who to thank – it does <strong>not</strong> change your
-                odds in the raffle.
+                that month&apos;s $100 drawing. We also record which player
+                you&apos;re supporting so our players and coaches know who to
+                thank – it doesn&apos;t change your odds in the drawing.
               </p>
 
               <div className="venmo-zelle">
-                <strong>Pay after you claim your date(s)</strong>
-                <div className="venmo-links">
-                  <span>
-                    Venmo:{" "}
-                    <a
-                      href="https://venmo.com/u/Justin-Kayse"
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      @Justin-Kayse
-                    </a>
-                  </span>
-                  <span> · </span>
-                  <span>
-                    Zelle: <strong>630-698-8769</strong>
-                  </span>
+                <div>
+                  <strong>Pay after you claim your date(s)</strong>
+                  <div className="venmo-links">
+                    <span>
+                      Venmo:{" "}
+                      <a
+                        href="https://venmo.com/u/Justin-Kayse"
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        @Justin-Kayse
+                      </a>
+                    </span>
+                    <span> · </span>
+                    <span>
+                      Zelle: <strong>630-698-8769</strong>
+                    </span>
+                  </div>
                 </div>
-                {/* Venmo QR image – save file as /public/venmo-qr.png */}
                 <div className="venmo-qr-wrap">
                   <img
                     src="/venmo-qr.png"
-                    alt="Venmo QR code for @Justin-Kayse"
+                    alt="Venmo QR for @Justin-Kayse"
                     className="venmo-qr"
                   />
                 </div>
@@ -300,7 +297,7 @@ export default function App() {
         <div className="header-bottom-row">
           <div className="header-links">
             <Link to="/supporters" className="nav-link">
-              View Supporters &amp; Payments
+              View Supporters
             </Link>
           </div>
           <div className="header-buttons">
@@ -311,66 +308,65 @@ export default function App() {
         </div>
       </header>
 
-      {/* HOW IT WORKS */}
+      {/* HOW IT WORKS SECTION */}
       <section className="how-it-works">
         <h2>How the Thunder Calendar Fundraiser Works</h2>
-
         <p>
           Each supporter chooses one or more available dates on the calendar.
           The number on the date is the number of raffle tickets you receive for
           that month&apos;s drawing. For example, if you claim{" "}
-          <strong>January 12</strong>, you get <strong>12 raffle tickets</strong>{" "}
-          for the January drawing.
+          <strong>January 12</strong>, you get{" "}
+          <strong>12 raffle tickets</strong> for the January drawing.
         </p>
 
         <p>
           Because we run this fundraiser during softball season, we combine
-          in-season and out-of-season months so drawings happen while the team
-          is together. We&apos;ll pull winners on this schedule:
+          in-season and out-of-season months so drawings can be held when the
+          team is together. We will draw winners on the schedule below:
         </p>
 
         <ul>
           <li>
-            <strong>January drawing:</strong> January &amp; August dates
+            <strong>January drawing:</strong> includes January &amp; August
+            dates
           </li>
           <li>
-            <strong>February drawing:</strong> February &amp; September dates
+            <strong>February drawing:</strong> includes February &amp; September
+            dates
           </li>
           <li>
-            <strong>March drawing:</strong> March &amp; October dates
+            <strong>March drawing:</strong> includes March &amp; October dates
           </li>
           <li>
-            <strong>April drawing:</strong> April &amp; November dates
+            <strong>April drawing:</strong> includes April &amp; November dates
           </li>
           <li>
-            <strong>May drawing:</strong> May &amp; December dates
+            <strong>May drawing:</strong> includes May &amp; December dates
           </li>
           <li>
-            <strong>June drawing:</strong> June dates only
+            <strong>June drawing:</strong> includes June dates only
           </li>
           <li>
-            <strong>July drawing:</strong> July dates only
+            <strong>July drawing:</strong> includes July dates only
           </li>
         </ul>
 
         <p>
-          At some point during each month, when Thunder 12U Teal is together for
-          practice, we&apos;ll pull one winning day. The{" "}
-          <strong>supporter</strong> who purchased that date wins the{" "}
-          <strong>$100 prize</strong>, and we&apos;ll reach out directly by text
-          or email.
+          At some point during each month — when Thunder 12U Teal is together
+          for practice — we will pull one winner for <strong>$100</strong> and
+          contact the <strong>supporter</strong> directly by text or email.
         </p>
 
         <p>
-          When you claim a date, you also pick which player you&apos;re
-          supporting. That&apos;s just so our players and coaches know who to
-          thank – it does <strong>not</strong> affect your raffle chances.
+          When you claim a date, you also select which player you&apos;re
+          supporting. This is <strong>only</strong> so our players and coaches
+          know who to thank — it does <strong>not affect</strong> your raffle
+          chances.
         </p>
 
         <p>
-          At any time, you can visit the{" "}
-          <strong>Supporters page</strong> to verify your dates and confirm that
-          we received your payment.
+          At any time, you can visit the <strong>Supporters</strong> page to
+          verify your dates and confirm that your payment has been received.
         </p>
 
         <p>
@@ -424,7 +420,9 @@ export default function App() {
         <SupporterFormModal
           dayInfo={selectedDay}
           initialValues={lastSupporterValues}
-          onClose={() => setShowForm(false)}
+          onClose={() => {
+            setShowForm(false);
+          }}
           onSubmit={handleSubmitEntry}
         />
       )}
@@ -458,8 +456,8 @@ export default function App() {
       <footer className="footer">
         <div className="footer-contact">
           <strong>Questions?</strong>{" "}
-          <a href="mailto:jkayse@hotmail.com">Email Coach Justin</a> or{" "}
-          <a href="sms:16306988769">text 630-698-8769</a>.
+          <a href="mailto:jkayse@hotmail.com">Email Coach Justin</a> or text{" "}
+          <strong>630-698-8769</strong>.
         </div>
         <small>© {CURRENT_YEAR} Kayse Softball • kaysesoftball.com</small>
       </footer>
@@ -467,9 +465,7 @@ export default function App() {
   );
 }
 
-/* ------------------------------------------------------------------ */
-/*  PUBLIC CALENDAR COMPONENTS                                        */
-/* ------------------------------------------------------------------ */
+/* ---------- PUBLIC VIEW COMPONENTS ---------- */
 
 function MonthOverviewGrid({ year, entries, raffleWinners, onSelectMonth }) {
   return (
@@ -589,9 +585,11 @@ function BigMonthCalendar({
           );
           const isTaken = !!entry;
 
-          const player = isTaken && PLAYERS.find((p) => p.id === entry.playerId);
+          const player =
+            isTaken && PLAYERS.find((p) => p.id === entry.playerId);
           const playerFirst = player ? player.firstName : "";
           const supporterName = isTaken ? entry.supporterName || "" : "";
+
           const isRaffle = raffleDay === cell.day;
 
           const className = [
@@ -613,6 +611,7 @@ function BigMonthCalendar({
                 <span className="big-day-daynumber">{cell.day}</span>
                 {isRaffle && <span className="big-day-raffle-tag">🎟</span>}
               </div>
+
               {isTaken && (
                 <>
                   <div className="big-day-supporter-line">{supporterName}</div>
@@ -627,9 +626,7 @@ function BigMonthCalendar({
   );
 }
 
-/* ------------------------------------------------------------------ */
-/*  MODALS: DATE PROMPT / FORM / DETAILS                              */
-/* ------------------------------------------------------------------ */
+/* ---------- MODALS: DATE PROMPT, FORM, DETAILS ---------- */
 
 function DatePromptModal({ dayInfo, onCancel, onClaim }) {
   const monthName = MONTH_NAMES[dayInfo.month - 1];
@@ -646,6 +643,7 @@ function DatePromptModal({ dayInfo, onCancel, onClaim }) {
           it doesn&apos;t change your raffle chances. Your phone is only used
           for payment questions and prize notification.
         </p>
+
         <div className="modal-buttons">
           <button type="button" onClick={onCancel}>
             Cancel
@@ -791,9 +789,7 @@ function EntryDetailsModal({ entry, onClose }) {
   );
 }
 
-/* ------------------------------------------------------------------ */
-/*  ADMIN PANEL & EDIT MODAL                                          */
-/* ------------------------------------------------------------------ */
+/* ---------- ADMIN PANEL & EDIT MODAL ---------- */
 
 function AdminPanel({
   entries,
@@ -1054,7 +1050,7 @@ function AdminPanel({
 
   return (
     <section className="admin-panel">
-      <h2>Admin View – Sponsors, Payments & Player Summary</h2>
+      <h2>Admin View – Sponsors, Payments &amp; Player Summary</h2>
 
       <div className="admin-filters">
         <span>Show:</span>
@@ -1348,480 +1344,12 @@ function AdminPanel({
     </section>
   );
 }
-  // Local pin overrides used to render table + update localStorage
-  const [pinOverrides, setPinOverrides] = useState(() => {
-    try {
-      const raw = localStorage.getItem(PIN_STORAGE_KEY);
-      return raw ? JSON.parse(raw) : {};
-    } catch (e) {
-      console.error("Failed to load pin overrides in AdminPanel", e);
-      return {};
-    }
-  });
-
-  const effectivePlayers = PLAYERS.map((p) => ({
-    ...p,
-    effectivePin: pinOverrides[p.id] ?? p.pin ?? "",
-  }));
-
-  const getPaymentMeta = (entry) => {
-    const owed = entry.day;
-    const methodRaw = entry.paymentMethod || "unpaid";
-    const amount = Number(entry.paymentAmount || 0);
-
-    const method =
-      methodRaw === "zelle" || methodRaw === "venmo" ? methodRaw : "unpaid";
-
-    const isPaid = method !== "unpaid" && amount > 0;
-    const isFullyPaid = isPaid && amount >= owed;
-
-    let label;
-    if (!isPaid) {
-      label = "Unpaid";
-    } else {
-      const base =
-        method === "zelle" ? "Paid via Zelle" : "Paid via Venmo";
-      if (isFullyPaid) {
-        label = `${base} (full $${amount})`;
-      } else {
-        label = `${base} (partial $${amount} of $${owed})`;
-      }
-    }
-
-    return { owed, amount, method, isPaid, isFullyPaid, label };
-  };
-
-  // Chronological base sort
-  const baseSorted = [...entries].sort((a, b) => {
-    const da = new Date(a.year, a.month - 1, a.day);
-    const db = new Date(b.year, b.month - 1, b.day);
-    return da - db;
-  });
-
-  const filtered = baseSorted.filter((e) => {
-    const meta = getPaymentMeta(e);
-    if (filter === "paid") return meta.isPaid;
-    if (filter === "unpaid") return !meta.isPaid;
-    return true;
-  });
-
-  const rowsWithMeta = filtered.map((e) => {
-    const player = PLAYERS.find((p) => p.id === e.playerId);
-    const playerName = player
-      ? `${player.firstName} ${player.lastName}`
-      : "Unknown";
-    const meta = getPaymentMeta(e);
-    return {
-      entry: e,
-      playerName,
-      meta,
-    };
-  });
-
-  const handlePaymentCheckbox = (entry, method) => {
-    const meta = getPaymentMeta(entry);
-    const owed = meta.owed;
-
-    // If already fully paid via this method, uncheck → unpaid
-    if (meta.method === method && meta.isFullyPaid) {
-      onQuickUpdateEntry({
-        ...entry,
-        paymentMethod: "unpaid",
-        paymentAmount: 0,
-        paid: false,
-      });
-      return;
-    }
-
-    // Otherwise set to full payment via that method
-    onQuickUpdateEntry({
-      ...entry,
-      paymentMethod: method,
-      paymentAmount: owed,
-      paid: true,
-    });
-  };
-
-  // Player fundraising summary
-  const summaryByPlayerId = new Map();
-  for (const e of entries) {
-    if (!e.playerId) continue;
-    if (!summaryByPlayerId.has(e.playerId)) {
-      summaryByPlayerId.set(e.playerId, { days: 0, dayNumberSum: 0 });
-    }
-    const rec = summaryByPlayerId.get(e.playerId);
-    rec.days += 1;
-    rec.dayNumberSum += e.day;
-  }
-
-  const summaryRows = Array.from(summaryByPlayerId.entries()).map(
-    ([playerId, { days, dayNumberSum }]) => {
-      const player = PLAYERS.find((p) => p.id === playerId);
-      return {
-        playerName: player
-          ? `${player.firstName} ${player.lastName}`
-          : "Unknown",
-        days,
-        dayNumberSum,
-      };
-    }
-  );
-
-  const monthsForRaffle = MONTH_NAMES.map((name, idx) => ({
-    name,
-    month: idx + 1,
-  }));
-
-  const handleExportCsv = () => {
-    const header = [
-      "Date",
-      "Supporter",
-      "Player",
-      "Note",
-      "Phone",
-      "Owed",
-      "PaymentAmount",
-      "PaymentMethod",
-      "PaymentStatus",
-    ];
-    const lines = [header.join(",")];
-
-    for (const e of baseSorted) {
-      const meta = getPaymentMeta(e);
-      const player = PLAYERS.find((p) => p.id === e.playerId);
-      const playerName = player
-        ? `${player.firstName} ${player.lastName}`
-        : "Unknown";
-      const dateStr = `${MONTH_NAMES[e.month - 1]} ${e.day}, ${e.year}`;
-
-      const escape = (val) => {
-        const s = val == null ? "" : String(val);
-        if (s.includes('"') || s.includes(",") || s.includes("\n")) {
-          return `"${s.replace(/"/g, '""')}"`;
-        }
-        return s;
-      };
-
-      const row = [
-        dateStr,
-        escape(e.supporterName || ""),
-        escape(playerName),
-        escape(e.note || ""),
-        escape(e.phone || ""),
-        meta.owed,
-        meta.amount,
-        meta.method === "unpaid"
-          ? "unpaid"
-          : meta.method === "zelle"
-          ? "zelle"
-          : "venmo",
-        escape(meta.label),
-      ];
-
-      lines.push(row.join(","));
-    }
-
-    const blob = new Blob([lines.join("\n")], {
-      type: "text/csv;charset=utf-8;",
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "thunder-calendar-entries.csv";
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
-
-  return (
-    <section className="admin-panel">
-      <h2>Admin View – Sponsors, Payments &amp; Player Summary</h2>
-
-      <div className="admin-filters">
-        <span>Show:</span>
-        <button
-          type="button"
-          className={filter === "all" ? "filter-button active" : "filter-button"}
-          onClick={() => setFilter("all")}
-        >
-          All
-        </button>
-        <button
-          type="button"
-          className={filter === "paid" ? "filter-button active" : "filter-button"}
-          onClick={() => setFilter("paid")}
-        >
-          Paid (any method)
-        </button>
-        <button
-          type="button"
-          className={
-            filter === "unpaid" ? "filter-button active" : "filter-button"
-          }
-          onClick={() => setFilter("unpaid")}
-        >
-          Unpaid
-        </button>
-        <button
-          type="button"
-          className="filter-button"
-          onClick={handleExportCsv}
-          style={{ marginLeft: "auto" }}
-        >
-          Export CSV
-        </button>
-      </div>
-
-      {/* Editable PINs */}
-      <h3 className="admin-summary-title">Player Access PINs</h3>
-      <p className="admin-note">
-        These 4-digit PINs let families unlock supporter details for their
-        player on the Supporters page. You can adjust them here at any time.
-      </p>
-      <div className="admin-table-wrapper">
-        <table className="admin-table">
-          <thead>
-            <tr>
-              <th>Number</th>
-              <th>Player</th>
-              <th>PIN (4 digits)</th>
-            </tr>
-          </thead>
-          <tbody>
-            {effectivePlayers.map((p) => (
-              <tr key={p.id}>
-                <td>{p.number}</td>
-                <td>
-                  {p.firstName} {p.lastName}
-                </td>
-                <td>
-                  <input
-                    type="text"
-                    maxLength={4}
-                    value={p.effectivePin}
-                    onChange={(e) => {
-                      const v = e.target.value.replace(/\D/g, "").slice(0, 4);
-                      setPinOverrides((prev) => {
-                        const next = { ...prev, [p.id]: v };
-                        try {
-                          localStorage.setItem(
-                            PIN_STORAGE_KEY,
-                            JSON.stringify(next)
-                          );
-                        } catch (err) {
-                          console.error("Failed to save pin overrides", err);
-                        }
-                        return next;
-                      });
-                    }}
-                    style={{ width: "60px" }}
-                  />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Main entries table */}
-      {rowsWithMeta.length === 0 ? (
-        <p>No entries match this filter.</p>
-      ) : (
-        <div className="admin-table-wrapper">
-          <table className="admin-table">
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Supporter</th>
-                <th>Player Supported</th>
-                <th>Note</th>
-                <th>Phone (private)</th>
-                <th>Zelle</th>
-                <th>Venmo</th>
-                <th>Payment status</th>
-                <th>Edit</th>
-                <th>Clear</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rowsWithMeta.map(({ entry, playerName, meta }) => {
-                const zelleChecked =
-                  meta.method === "zelle" && meta.isFullyPaid;
-                const venmoChecked =
-                  meta.method === "venmo" && meta.isFullyPaid;
-
-                return (
-                  <tr key={entry.id}>
-                    <td>
-                      {MONTH_NAMES[entry.month - 1]} {entry.day},{" "}
-                      {entry.year}
-                    </td>
-                    <td>{entry.supporterName}</td>
-                    <td>{playerName}</td>
-                    <td>{entry.note}</td>
-                    <td>{entry.phone}</td>
-                    <td>
-                      <input
-                        type="checkbox"
-                        checked={zelleChecked}
-                        onChange={() => handlePaymentCheckbox(entry, "zelle")}
-                      />
-                    </td>
-                    <td>
-                      <input
-                        type="checkbox"
-                        checked={venmoChecked}
-                        onChange={() => handlePaymentCheckbox(entry, "venmo")}
-                      />
-                    </td>
-                    <td>{meta.label}</td>
-                    <td>
-                      <button
-                        type="button"
-                        className="link-button"
-                        onClick={() => onEditEntry(entry)}
-                      >
-                        Edit
-                      </button>
-                    </td>
-                    <td>
-                      <button
-                        type="button"
-                        className="link-button"
-                        onClick={() => onDelete(entry.id)}
-                      >
-                        Clear
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {/* Raffle winners */}
-      <h3 className="admin-summary-title">Monthly Raffle Winners</h3>
-      <p className="admin-note">
-        Choose one winning day per month. The supporter who purchased that date
-        wins the raffle prize. We&apos;ll draw at a team practice and contact
-        the winning supporter.
-      </p>
-      <div className="admin-table-wrapper">
-        <table className="admin-table">
-          <thead>
-            <tr>
-              <th>Month</th>
-              <th>Winning Day</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {monthsForRaffle.map((m) => {
-              const key = `${CURRENT_YEAR}-${m.month}`;
-              const selectedDay = raffleWinners[key] || "";
-              const daysInMonth = new Date(
-                CURRENT_YEAR,
-                m.month,
-                0
-              ).getDate();
-              const options = [];
-              for (let d = 1; d <= daysInMonth; d++) options.push(d);
-              return (
-                <tr key={m.month}>
-                  <td>{m.name}</td>
-                  <td>
-                    <select
-                      value={selectedDay}
-                      onChange={(e) =>
-                        onSetRaffleWinner(
-                          CURRENT_YEAR,
-                          m.month,
-                          e.target.value ? Number(e.target.value) : null
-                        )
-                      }
-                    >
-                      <option value="">— none —</option>
-                      {options.map((d) => (
-                        <option key={d} value={d}>
-                          {d}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-                  <td>
-                    {selectedDay ? (
-                      <button
-                        type="button"
-                        className="link-button"
-                        onClick={() =>
-                          onSetRaffleWinner(CURRENT_YEAR, m.month, null)
-                        }
-                      >
-                        Clear winner
-                      </button>
-                    ) : (
-                      <span style={{ fontSize: "0.8rem", color: "#666" }}>
-                        No winner selected
-                      </span>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Player fundraising summary */}
-      <h3 className="admin-summary-title">Player Fundraising Summary</h3>
-      {summaryRows.length === 0 ? (
-        <p>No days claimed yet.</p>
-      ) : (
-        <div className="admin-table-wrapper">
-          <table className="admin-table">
-            <thead>
-              <tr>
-                <th>Player</th>
-                <th>Days sponsored</th>
-                <th>
-                  Sum of date numbers{" "}
-                  <span className="summary-hint">
-                    (e.g., December 12 + August 27 = 12 + 27 = 39)
-                  </span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {summaryRows.map((row) => (
-                <tr key={row.playerName}>
-                  <td>{row.playerName}</td>
-                  <td>{row.days}</td>
-                  <td>{row.dayNumberSum}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      <p className="admin-note">
-        Use this view to track who has supported each player, how many days are
-        sponsored, adjust player PINs, and export a CSV snapshot of all entries
-        and payment status.
-      </p>
-    </section>
-  );
-}
 
 function EditEntryModal({ entry, onClose, onSave }) {
   const [supporterName, setSupporterName] = useState(entry.supporterName || "");
   const [playerId, setPlayerId] = useState(entry.playerId || "");
   const [note, setNote] = useState(entry.note || "");
   const [phone, setPhone] = useState(entry.phone || "");
-  const [paid, setPaid] = useState(!!entry.paid);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -1831,7 +1359,6 @@ function EditEntryModal({ entry, onClose, onSave }) {
       playerId,
       note,
       phone,
-      paid,
     });
   };
 
@@ -1886,15 +1413,6 @@ function EditEntryModal({ entry, onClose, onSave }) {
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
             />
-          </label>
-
-          <label className="inline-label">
-            <input
-              type="checkbox"
-              checked={paid}
-              onChange={(e) => setPaid(e.target.checked)}
-            />{" "}
-            Mark as paid (legacy flag)
           </label>
 
           <div className="modal-buttons">
