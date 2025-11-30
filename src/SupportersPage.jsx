@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { PLAYERS } from "./players";
 
 const STORAGE_KEY = "kaysesoftball_calendar_entries_v1";
+const PIN_STORAGE_KEY = "kaysesoftball_player_pins_v1";
 
 const MONTH_NAMES = [
   "January",
@@ -23,25 +24,10 @@ export default function SupportersPage() {
   const [entries, setEntries] = useState([]);
   const [selectedPlayerId, setSelectedPlayerId] = useState(null);
   const [selectedSupporter, setSelectedSupporter] = useState(null);
-  const PIN_STORAGE_KEY = "kaysesoftball_player_pins_v1";
-  const [entries, setEntries] = useState([]);
-  const [selectedPlayerId, setSelectedPlayerId] = useState(null);
-  const [selectedSupporter, setSelectedSupporter] = useState(null);
   const [pinOverrides, setPinOverrides] = useState({});
 
-  // Load entries from localStorage (same data used on main page)
+  // Load entries + pin overrides from localStorage
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        setEntries(JSON.parse(raw));
-      }
-    } catch (err) {
-      console.error("Failed to load entries on supporters page", err);
-    }
-  }, []);
-
-    useEffect(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) {
@@ -57,7 +43,8 @@ export default function SupportersPage() {
     }
   }, []);
 
-    const effectivePlayers = useMemo(
+  // PLAYERS with effectivePin (override if set)
+  const effectivePlayers = useMemo(
     () =>
       PLAYERS.map((p) => ({
         ...p,
@@ -67,12 +54,14 @@ export default function SupportersPage() {
   );
 
   // Players sorted alphabetical by first name
-    const playersSorted = useMemo(
-    () => [...effectivePlayers].sort((a, b) => a.firstName.localeCompare(b.firstName)),
+  const playersSorted = useMemo(
+    () =>
+      [...effectivePlayers].sort((a, b) =>
+        a.firstName.localeCompare(b.firstName)
+      ),
     [effectivePlayers]
   );
 
-  
   const handleSelectPlayer = (playerId) => {
     setSelectedPlayerId(playerId);
     setSelectedSupporter(null);
@@ -139,11 +128,9 @@ export default function SupportersPage() {
       return;
     }
 
-    // Look up player PIN
+    // Look up player PIN using effectivePlayers (so overrides work)
     const player = effectivePlayers.find((p) => p.id === selectedPlayerId);
     const playerPin = player?.effectivePin;
-    const currentPlayer =
-  selectedPlayerId && effectivePlayers.find((p) => p.id === selectedPlayerId);
 
     let hasMatch = false;
 
@@ -152,9 +139,7 @@ export default function SupportersPage() {
       hasMatch = relevant.some((e) => {
         const stored = (e.phone || "").replace(/\D/g, "");
         if (!stored) return false;
-        return (
-          stored === cleanedInput || stored.endsWith(cleanedInput)
-        );
+        return stored === cleanedInput || stored.endsWith(cleanedInput);
       });
     }
 
@@ -179,7 +164,7 @@ export default function SupportersPage() {
   const supporterDetails = useMemo(() => {
     if (!selectedPlayerId || !selectedSupporter) return null;
 
-    const player = PLAYERS.find((p) => p.id === selectedPlayerId);
+    const player = effectivePlayers.find((p) => p.id === selectedPlayerId);
     const relevant = entriesForPlayer.filter(
       (e) => (e.supporterName || "").trim() === selectedSupporter.trim()
     );
@@ -218,10 +203,10 @@ export default function SupportersPage() {
       totalPaid,
       phoneOnFile,
     };
-  }, [selectedPlayerId, selectedSupporter, entriesForPlayer]);
+  }, [selectedPlayerId, selectedSupporter, entriesForPlayer, effectivePlayers]);
 
   const currentPlayer =
-    selectedPlayerId && PLAYERS.find((p) => p.id === selectedPlayerId);
+    selectedPlayerId && effectivePlayers.find((p) => p.id === selectedPlayerId);
 
   return (
     <div className="page supporters-page">
