@@ -304,37 +304,45 @@ const newEntry = {
       {/* HOW IT WORKS SECTION */}
       <section className="how-it-works">
   <h2>How the Thunder Calendar Fundraiser Works</h2>
-  <p>
-    Each <strong>supporter</strong> chooses one or more available dates
-    on the calendar. The number on the date is the number of{" "}
-    <strong>raffle tickets</strong> you receive for that month&apos;s
-    drawing.
-  </p>
-  <p>
-    For example, if you claim <strong>January 12</strong>, you get{" "}
-    <strong>12 raffle tickets</strong> for the January drawing.
-  </p>
-  <p>
-    At the end of each month, after the fundraising window closes, we put
-    all of the tickets into a drawing at a Thunder 12U Teal team practice
-    and <strong>pull one winner for $100</strong>. We&apos;ll reach out to
-    the winner directly by text or email.
-  </p>
-  <p>
-    When you claim a date, you also select which player you&apos;re
-    supporting. That&apos;s just so our players and coaches know who to
-    thank – it does <em>not</em> affect your raffle chances.
-  </p>
-        <p style={{ marginTop: "8px", fontSize: "0.9rem" }}>
-  At any time, you can visit the{" "}
-  <Link to="/supporters">Supporters page</Link> to confirm your dates and 
-  confirm that we received your payment..
+<p>
+  Each supporter chooses one or more available dates on the calendar. The number on the date is the 
+  number of raffle tickets you receive for that month’s drawing. 
+  For example, if you claim <strong>January 12</strong>, you get <strong>12 raffle tickets</strong> 
+  for the January drawing.
 </p>
-  <p>
-    Thank you for supporting Thunder 12u Teal!
-  </p>
-</section>
 
+<p>
+  Because we run this fundraiser during softball season, we combine in-season and out-of-season months 
+  so drawings can be held when the team is together. We will draw winners on the schedule below:
+</p>
+
+<ul>
+  <li><strong>January drawing:</strong> includes January & August dates</li>
+  <li><strong>February drawing:</strong> includes February & September dates</li>
+  <li><strong>March drawing:</strong> includes March & October dates</li>
+  <li><strong>April drawing:</strong> includes April & November dates</li>
+  <li><strong>May drawing:</strong> includes May & December dates</li>
+  <li><strong>June drawing:</strong> includes June dates only</li>
+  <li><strong>July drawing:</strong> includes July dates only</li>
+</ul>
+
+<p>
+  At some point during each month — when Thunder 12U Teal is together for practice — 
+  we will pull one winner for <strong>$100</strong> and contact the supporter directly by text or email.
+</p>
+
+<p>
+  When you claim a date, you also select which player you’re supporting. This is 
+  <strong>only</strong> so our players and coaches know who to thank — it does 
+  <strong>not affect your raffle chances</strong>.
+</p>
+
+<p>
+  At any time, you can visit the <strong>Supporters</strong> page to verify your dates and 
+  confirm that your payment has been received.
+</p>
+
+<p><strong>Thank you for supporting Thunder 12U Teal!</strong></p>
       {/* MAIN CALENDAR AREA */}
       <section className="calendar-section">
         {selectedMonthIndex === null ? (
