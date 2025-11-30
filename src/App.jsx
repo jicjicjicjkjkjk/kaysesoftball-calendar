@@ -261,30 +261,57 @@ export default function App() {
     const winningDay = dayOrNull || null;
     const key = `${year}-${month}`;
 
+    // Save previous state in case we need to roll back
     const previous = raffleWinners;
 
+    // Optimistic UI update
     setRaffleWinners((prev) => {
       const next = { ...prev };
-      if (winningDay == null) delete next[key];
-      else next[key] = winningDay;
+      if (winningDay == null) {
+        delete next[key];
+      } else {
+        next[key] = winningDay;
+      }
       return next;
     });
 
     try {
-      const { error } = await supabase
+      // Does a row already exist for this year/month?
+      const { data: existing, error: selectError } = await supabase
         .from("raffle_winners")
-        .upsert(
-          {
-            year,
-            month,
-            winning_day: winningDay,
-          },
-          { onConflict: "year,month" }
-        );
-      if (error) throw error;
+        .select("*")
+        .eq("year", year)
+        .eq("month", month)
+        .maybeSingle();
+
+      if (selectError) {
+        throw selectError;
+      }
+
+      let saveError = null;
+
+      if (existing) {
+        // Update existing row
+        const { error } = await supabase
+          .from("raffle_winners")
+          .update({ winning_day: winningDay })
+          .eq("id", existing.id);
+        saveError = error;
+      } else {
+        // Insert new row
+        const { error } = await supabase
+          .from("raffle_winners")
+          .insert([{ year, month, winning_day: winningDay }]);
+        saveError = error;
+      }
+
+      if (saveError) {
+        throw saveError;
+      }
     } catch (err) {
       console.error("Error saving raffle winner", err);
       alert("Error saving raffle winner; reloading data.");
+      // Roll back and reload from the DB so everything stays in sync
       setRaffleWinners(previous);
       loadAllSharedData();
     }
