@@ -326,9 +326,9 @@ const newEntry = {
     thank – it does <em>not</em> affect your raffle chances.
   </p>
         <p style={{ marginTop: "8px", fontSize: "0.9rem" }}>
-  After you pick your dates and send payment, you can visit the{" "}
-  <Link to="/supporters">Supporters page</Link> to confirm we recorded your
-  payment and see all of the dates you have selected.
+  At any time, you can visit the{" "}
+  <Link to="/supporters">Supporters page</Link> to confirm your dates and 
+  confirm that we received your payment..
 </p>
   <p>
     Thank you for supporting Thunder 12u Teal!
