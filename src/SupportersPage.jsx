@@ -36,12 +36,11 @@ export default function SupportersPage() {
     }
   }, []);
 
-  // Sort players alphabetically by first name
-  const playersSorted = useMemo(() => {
-    return [...PLAYERS].sort((a, b) =>
-      a.firstName.localeCompare(b.firstName)
-    );
-  }, []);
+  // Players sorted alphabetical by first name
+  const playersSorted = useMemo(
+    () => [...PLAYERS].sort((a, b) => a.firstName.localeCompare(b.firstName)),
+    []
+  );
 
   const handleSelectPlayer = (playerId) => {
     setSelectedPlayerId(playerId);
@@ -54,10 +53,11 @@ export default function SupportersPage() {
     return entries.filter((e) => e.playerId === selectedPlayerId);
   }, [entries, selectedPlayerId]);
 
-  // Supporters for selected player
+  // Supporters for selected player (with count & total)
   const supportersForPlayer = useMemo(() => {
     if (!selectedPlayerId) return [];
     const map = new Map(); // supporterName -> { count, total, entries }
+
     for (const e of entriesForPlayer) {
       const name = (e.supporterName || "").trim();
       if (!name) continue;
@@ -66,19 +66,22 @@ export default function SupportersPage() {
       }
       const rec = map.get(name);
       rec.count += 1;
-      rec.total += e.day; // sum of day numbers
+      rec.total += e.day; // sum of date numbers
       rec.entries.push(e);
     }
+
     const rows = Array.from(map.entries()).map(([name, rec]) => ({
       supporterName: name,
       count: rec.count,
       total: rec.total,
       entries: rec.entries,
     }));
+
     rows.sort((a, b) => a.supporterName.localeCompare(b.supporterName));
     return rows;
   }, [entriesForPlayer]);
 
+  // When you click on a supporter in the middle column
   const handleSelectSupporter = (supporterName) => {
     if (!selectedPlayerId) return;
 
@@ -105,24 +108,24 @@ export default function SupportersPage() {
       return;
     }
 
-    // Look up player PIN from PLAYERS
+    // Look up player PIN
     const player = PLAYERS.find((p) => p.id === selectedPlayerId);
     const playerPin = player?.pin;
 
     let hasMatch = false;
 
-    // Option 1: match supporter phone (full or trailing digits)
+    // Option 1: phone match (full or last digits)
     if (cleanedInput.length >= 4) {
       hasMatch = relevant.some((e) => {
         const stored = (e.phone || "").replace(/\D/g, "");
         if (!stored) return false;
         return (
-          stored === cleanedInput || stored.endsWith(cleanedInput) // allow last 4
+          stored === cleanedInput || stored.endsWith(cleanedInput)
         );
       });
     }
 
-    // Option 2: if exactly 4 digits and not matched yet, allow player PIN
+    // Option 2: 4-digit player PIN
     if (!hasMatch && cleanedInput.length === 4 && playerPin) {
       if (cleanedInput === playerPin) {
         hasMatch = true;
@@ -139,9 +142,10 @@ export default function SupportersPage() {
     setSelectedSupporter(supporterName);
   };
 
-  // Entries for selected supporter + player
+  // Details for the currently-selected supporter + player
   const supporterDetails = useMemo(() => {
     if (!selectedPlayerId || !selectedSupporter) return null;
+
     const player = PLAYERS.find((p) => p.id === selectedPlayerId);
     const relevant = entriesForPlayer.filter(
       (e) => (e.supporterName || "").trim() === selectedSupporter.trim()
@@ -149,38 +153,39 @@ export default function SupportersPage() {
     if (relevant.length === 0) return null;
 
     const sorted = [...relevant].sort((a, b) => {
-  const da = new Date(a.year, a.month - 1, a.day);
-  const db = new Date(b.year, b.month - 1, b.day);
-  return da - db;
-});
+      const da = new Date(a.year, a.month - 1, a.day);
+      const db = new Date(b.year, b.month - 1, b.day);
+      return da - db;
+    });
 
-const dates = sorted.map((e) => ({
-  id: e.id,
-  year: e.year,
-  monthName: MONTH_NAMES[e.month - 1],
-  day: e.day,
-}));
+    const dates = sorted.map((e) => ({
+      id: e.id,
+      year: e.year,
+      monthName: MONTH_NAMES[e.month - 1],
+      day: e.day,
+    }));
 
-const total = sorted.reduce((sum, e) => sum + e.day, 0);
-const totalPaid = sorted.reduce(
-  (sum, e) => sum + Number(e.paymentAmount || 0),
-  0
-);
+    const total = sorted.reduce((sum, e) => sum + e.day, 0);
+    const totalPaid = sorted.reduce(
+      (sum, e) => sum + Number(e.paymentAmount || 0),
+      0
+    );
 
-// take the first non-blank phone on file for this supporter
-const phoneOnFile =
-  sorted.find((e) => (e.phone || "").trim().length > 0)?.phone || "";
+    // First non-empty phone on file for this supporter
+    const phoneOnFile =
+      sorted.find((e) => (e.phone || "").trim().length > 0)?.phone || "";
 
-return {
-  playerName: player
-    ? `${player.firstName} ${player.lastName}`
-    : "Unknown player",
-  supporterName: selectedSupporter,
-  dates,
-  total,
-  totalPaid,
-  phoneOnFile,
-};
+    return {
+      playerName: player
+        ? `${player.firstName} ${player.lastName}`
+        : "Unknown player",
+      supporterName: selectedSupporter,
+      dates,
+      total,
+      totalPaid,
+      phoneOnFile,
+    };
+  }, [selectedPlayerId, selectedSupporter, entriesForPlayer]);
 
   const currentPlayer =
     selectedPlayerId && PLAYERS.find((p) => p.id === selectedPlayerId);
@@ -302,17 +307,18 @@ return {
             {supporterDetails && (
               <div className="supporter-details-card">
                 <p>
-  <strong>Supporter:</strong> {supporterDetails.supporterName}
-</p>
-<p>
-  <strong>Player Supported:</strong>{" "}
-  {supporterDetails.playerName}
-</p>
-<p>
-  <strong>Phone on file:</strong>{" "}
-  {supporterDetails.phoneOnFile || "Not provided"}
-</p>
-                
+                  <strong>Supporter:</strong>{" "}
+                  {supporterDetails.supporterName}
+                </p>
+                <p>
+                  <strong>Player Supported:</strong>{" "}
+                  {supporterDetails.playerName}
+                </p>
+                <p>
+                  <strong>Phone on file:</strong>{" "}
+                  {supporterDetails.phoneOnFile || "Not provided"}
+                </p>
+
                 <h3>Dates Purchased</h3>
                 <ul className="supporter-dates-list">
                   {supporterDetails.dates.map((d) => (
@@ -329,8 +335,8 @@ return {
 
                 {supporterDetails.totalPaid >= supporterDetails.total ? (
                   <p className="supporter-total">
-                    <strong>Thank you!</strong> Payment has been received in
-                    full.
+                    <strong>Thank you!</strong> Payment has been received
+                    in full.
                   </p>
                 ) : supporterDetails.totalPaid > 0 ? (
                   <p className="supporter-total">
