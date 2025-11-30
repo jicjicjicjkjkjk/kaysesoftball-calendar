@@ -273,7 +273,6 @@ const newEntry = {
                   <span>
                     Zelle: <strong>630-698-8769</strong>
                   </span>
-                  <span> (last 4: 8769)</span>
                 </div>
               </div>
             </div>
@@ -326,10 +325,13 @@ const newEntry = {
     supporting. That&apos;s just so our players and coaches know who to
     thank – it does <em>not</em> affect your raffle chances.
   </p>
+        <p style={{ marginTop: "8px", fontSize: "0.9rem" }}>
+  After you pick your dates and send payment, you can visit the{" "}
+  <Link to="/supporters">Supporters page</Link> to confirm we recorded your
+  payment and see all of the dates you have selected.
+</p>
   <p>
-    Your support helps fund professional coaches, quality indoor training
-    space, and extra tournaments and games for Thunder 12U Teal. Thank you
-    for investing in our players!
+    Thank you for supporting Thunder 12u Teal!
   </p>
 </section>
 
@@ -692,7 +694,7 @@ function SupporterFormModal({ dayInfo, initialValues, onClose, onSubmit }) {
 
           <p className="modal-text small">
             After submitting, please send payment via Venmo @Justin-Kayse or
-            Zelle 630-698-8769 (last 4: 8769).
+            Zelle 630-698-8769.
           </p>
 
           <div className="modal-buttons">
