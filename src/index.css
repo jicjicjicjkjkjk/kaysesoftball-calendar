@@ -856,6 +856,37 @@ a:hover {
   }
 }
 
+/* Venmo / Zelle block */
+.venmo-zelle {
+  margin-top: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  align-items: flex-start;
+  font-size: 0.95rem;
+}
+
+/* Wrap for QR so it doesn't dominate the layout */
+.venmo-qr-wrap {
+  margin-top: 0.25rem;
+}
+
+/* Make the QR code small and responsive */
+.venmo-qr {
+  width: 90px;        /* base size on desktop */
+  max-width: 22vw;    /* don’t get huge on wide screens */
+  height: auto;
+  border-radius: 6px;
+}
+
+/* On small screens keep it even smaller so it never takes over */
+@media (max-width: 600px) {
+  .venmo-qr {
+    width: 70px;
+    max-width: 26vw;
+  }
+}
+
 @media (max-width: 768px) {
   .header {
     padding: 6px 10px 4px;
