@@ -1199,6 +1199,38 @@ function AdminPanel({
         </table>
       </div>
 
+
+{/* Player access PINs */}
+<h3 className="admin-summary-title">Player Access PINs</h3>
+<p className="admin-note">
+  These 4-digit PINs let families unlock the supporter details for their
+  player on the Supporters page. They are currently set to the last 4
+  digits of Parent Phone 2.
+</p>
+<div className="admin-table-wrapper">
+  <table className="admin-table">
+    <thead>
+      <tr>
+        <th>Number</th>
+        <th>Player</th>
+        <th>PIN (last 4)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {PLAYERS.map((p) => (
+        <tr key={p.id}>
+          <td>{p.number}</td>
+          <td>
+            {p.firstName} {p.lastName}
+          </td>
+          <td>{p.pin || "—"}</td>
+        </tr>
+      ))}
+    </tbody>
+  </table>
+</div>      
+
+
       {/* Player fundraising summary */}
       <h3 className="admin-summary-title">Player Fundraising Summary</h3>
       {summaryRows.length === 0 ? (
