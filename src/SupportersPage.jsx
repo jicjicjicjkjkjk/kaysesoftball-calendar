@@ -149,34 +149,38 @@ export default function SupportersPage() {
     if (relevant.length === 0) return null;
 
     const sorted = [...relevant].sort((a, b) => {
-      const da = new Date(a.year, a.month - 1, a.day);
-      const db = new Date(b.year, b.month - 1, b.day);
-      return da - db;
-    });
+  const da = new Date(a.year, a.month - 1, a.day);
+  const db = new Date(b.year, b.month - 1, b.day);
+  return da - db;
+});
 
-    const dates = sorted.map((e) => ({
-      id: e.id,
-      year: e.year,
-      monthName: MONTH_NAMES[e.month - 1],
-      day: e.day,
-    }));
+const dates = sorted.map((e) => ({
+  id: e.id,
+  year: e.year,
+  monthName: MONTH_NAMES[e.month - 1],
+  day: e.day,
+}));
 
-    const total = sorted.reduce((sum, e) => sum + e.day, 0);
-    const totalPaid = sorted.reduce(
-      (sum, e) => sum + Number(e.paymentAmount || 0),
-      0
-    );
+const total = sorted.reduce((sum, e) => sum + e.day, 0);
+const totalPaid = sorted.reduce(
+  (sum, e) => sum + Number(e.paymentAmount || 0),
+  0
+);
 
-    return {
-      playerName: player
-        ? `${player.firstName} ${player.lastName}`
-        : "Unknown player",
-      supporterName: selectedSupporter,
-      dates,
-      total,
-      totalPaid,
-    };
-  }, [selectedPlayerId, selectedSupporter, entriesForPlayer]);
+// take the first non-blank phone on file for this supporter
+const phoneOnFile =
+  sorted.find((e) => (e.phone || "").trim().length > 0)?.phone || "";
+
+return {
+  playerName: player
+    ? `${player.firstName} ${player.lastName}`
+    : "Unknown player",
+  supporterName: selectedSupporter,
+  dates,
+  total,
+  totalPaid,
+  phoneOnFile,
+};
 
   const currentPlayer =
     selectedPlayerId && PLAYERS.find((p) => p.id === selectedPlayerId);
