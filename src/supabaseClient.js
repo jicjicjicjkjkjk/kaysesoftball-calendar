@@ -1,3 +1,5 @@
+alert("Supabase test triggered");
+
 // src/supabaseClient.js
 import { createClient } from "@supabase/supabase-js";
 
