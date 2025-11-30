@@ -69,7 +69,10 @@ export default function App() {
   });
 
   const [pinOverrides, setPinOverrides] = useState({});
-
+  useEffect(() => {
+    testSupabaseConnection();
+  }, []);
+  
   import { supabase, testSupabaseConnection } from "./supabaseClient";
   
   // Load player PIN overrides for supporters-page PIN usage
