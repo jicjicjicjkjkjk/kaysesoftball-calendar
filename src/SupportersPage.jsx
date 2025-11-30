@@ -308,7 +308,10 @@ return {
                   <strong>Player Supported:</strong>{" "}
                   {supporterDetails.playerName}
                 </p>
-
+<p>
+  <strong>Phone on file:</strong>{" "}
+  {supporterDetails.phoneOnFile || "Not provided"}
+</p>
                 <h3>Dates Purchased</h3>
                 <ul className="supporter-dates-list">
                   {supporterDetails.dates.map((d) => (
