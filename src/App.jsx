@@ -423,14 +423,14 @@ const newEntry = {
         />
       )}
 
-      <footer className="footer">
+            <footer className="footer">
         <div className="footer-contact">
           <strong>Questions?</strong>{" "}
           <a href="mailto:jkayse@hotmail.com">Email Coach Justin</a>
         </div>
         <small>© {CURRENT_YEAR} Kayse Softball • kaysesoftball.com</small>
       </footer>
-    </div>
+    </section>
   );
 }
 
