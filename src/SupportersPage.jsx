@@ -66,13 +66,17 @@ export default function SupportersPage() {
   const [entries, setEntries] = useState([]);
   const [playerPins, setPlayerPins] = useState({});
   const [loading, setLoading] = useState(true);
-  const [selectedPlayerId, setSelectedPlayerId] = useState(null);
 
+  const [selectedPlayerId, setSelectedPlayerId] = useState(null); // for supporters table
   const [expandedSupporter, setExpandedSupporter] = useState(null);
+
   const [sortConfig, setSortConfig] = useState({
-    key: "supporter",
+    key: "supporter", // supporter | days
     direction: "asc",
   });
+
+  // For "FOR THUNDER PLAYERS" summary button
+  const [summaryPlayerId, setSummaryPlayerId] = useState(null);
 
   useEffect(() => {
     (async () => {
@@ -109,14 +113,14 @@ export default function SupportersPage() {
     })();
   }, []);
 
-  const selectedPlayer = PLAYERS.find((p) => p.id === selectedPlayerId) || null;
+  /* ---------- COMMON DERIVED DATA ---------- */
+
+  const selectedPlayer =
+    PLAYERS.find((p) => p.id === selectedPlayerId) || null;
 
   const playerEntries = selectedPlayer
     ? entries.filter((e) => e.playerId === selectedPlayer.id)
     : [];
-
-  const totalDays = playerEntries.length;
-  const sumOfDates = playerEntries.reduce((sum, e) => sum + e.day, 0);
 
   // Build supporter summary for the selected player
   const supporterMap = new Map();
@@ -127,7 +131,6 @@ export default function SupportersPage() {
         supporterName: key,
         dates: [],
         totalDays: 0,
-        sumDates: 0,
         phones: [],
         hasPaid: false,
         hasUnpaid: false,
@@ -136,7 +139,6 @@ export default function SupportersPage() {
     const rec = supporterMap.get(key);
     rec.dates.push(e);
     rec.totalDays += 1;
-    rec.sumDates += e.day;
     if (e.phone) rec.phones.push(e.phone);
     const meta = getPaymentMeta(e);
     if (meta.isPaid) rec.hasPaid = true;
@@ -145,7 +147,7 @@ export default function SupportersPage() {
 
   let supporterRows = Array.from(supporterMap.values());
 
-  // Sort supporters
+  // Sort supporters (by name or number of dates)
   supporterRows.sort((a, b) => {
     const dir = sortConfig.direction === "asc" ? 1 : -1;
     switch (sortConfig.key) {
@@ -158,8 +160,6 @@ export default function SupportersPage() {
       }
       case "days":
         return (a.totalDays - b.totalDays) * dir;
-      case "sum":
-        return (a.sumDates - b.sumDates) * dir;
       default:
         return 0;
     }
@@ -208,6 +208,44 @@ export default function SupportersPage() {
     }
   };
 
+  /* ---------- PLAYER SUMMARY (FOR THUNDER PLAYERS BUTTON) ---------- */
+
+  const handlePlayerSummaryButton = () => {
+    const entered = window.prompt(
+      "FOR THUNDER PLAYERS: enter your 4-digit player PIN to view your personal fundraising summary."
+    );
+    if (entered == null) return;
+    const code = entered.trim();
+
+    if (!code) {
+      alert("Please enter a 4-digit PIN.");
+      return;
+    }
+
+    // Find which player this PIN belongs to
+    const match = Object.entries(playerPins).find(
+      ([playerId, pin]) => (pin || "").trim() === code
+    );
+
+    if (!match) {
+      alert("No player found with that PIN. Check with your coach.");
+      return;
+    }
+
+    const [playerId] = match;
+    setSummaryPlayerId(playerId);
+  };
+
+  const summaryPlayer =
+    PLAYERS.find((p) => p.id === summaryPlayerId) || null;
+
+  const summaryEntries = summaryPlayer
+    ? entries.filter((e) => e.playerId === summaryPlayer.id)
+    : [];
+
+  const summaryDays = summaryEntries.length;
+  const summarySumDates = summaryEntries.reduce((sum, e) => sum + e.day, 0);
+
   return (
     <div className="page supporters-page">
       <header className="header">
@@ -218,10 +256,9 @@ export default function SupportersPage() {
           </Link>
         </div>
         <p className="supporter-intro">
-          Choose a player to see who has supported them, how many calendar days
-          they’ve sold, and the sum of those date numbers. Supporters can unlock
-          their detailed dates using the player PIN or the last 4 digits of
-          their phone number.
+          Pick a player below to see who has supported them and how many dates
+          each supporter purchased. Supporters can unlock their detailed dates
+          with a PIN, and Thunder players can view their own overall summary.
         </p>
       </header>
 
@@ -231,9 +268,9 @@ export default function SupportersPage() {
         </main>
       ) : (
         <main className="supporters-main">
-          {/* Player selection */}
+          {/* TOP: Player supporters table (what you described) */}
           <section className="supporters-player-list">
-            <h2>Select a Player</h2>
+            <h2>Supporters by Player</h2>
             <div className="player-pill-row">
               {PLAYERS.map((p) => (
                 <button
@@ -255,127 +292,139 @@ export default function SupportersPage() {
             </div>
           </section>
 
-          {/* Summary + supporters table */}
           {selectedPlayer ? (
-            <>
-              <section className="supporters-summary">
-                <h2>
-                  Fundraising Summary – {selectedPlayer.firstName}{" "}
-                  {selectedPlayer.lastName}
-                </h2>
-                <p>
-                  <strong>Total days sold:</strong> {totalDays}
-                </p>
-                <p>
-                  <strong>Sum of date numbers:</strong> {sumOfDates}
-                </p>
-                <p className="supporter-note">
-                  Example: December 12 + August 27 = 12 + 27 = 39.
-                </p>
-              </section>
+            <section className="supporters-table-section">
+              <h3>
+                Supporters for {selectedPlayer.firstName}{" "}
+                {selectedPlayer.lastName}
+              </h3>
+              {supporterRows.length === 0 ? (
+                <p>No dates have been sold yet for this player.</p>
+              ) : (
+                <div className="admin-table-wrapper">
+                  <table className="admin-table">
+                    <thead>
+                      <tr>
+                        <th
+                          className="sortable-col"
+                          onClick={() => handleSort("supporter")}
+                        >
+                          Supporter{sortIndicator("supporter")}
+                        </th>
+                        <th
+                          className="sortable-col"
+                          onClick={() => handleSort("days")}
+                        >
+                          Number of dates{sortIndicator("days")}
+                        </th>
+                        <th>Payment status (overall)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {supporterRows.map((row) => {
+                        let paymentSummary = "Unpaid";
+                        if (row.hasPaid && row.hasUnpaid) {
+                          paymentSummary = "Some dates paid, some unpaid";
+                        } else if (row.hasPaid) {
+                          paymentSummary = "All paid";
+                        }
 
-              <section className="supporters-table-section">
-                <h3>Supporters for this player</h3>
-                {supporterRows.length === 0 ? (
-                  <p>No dates have been sold yet for this player.</p>
-                ) : (
-                  <div className="admin-table-wrapper">
-                    <table className="admin-table">
-                      <thead>
-                        <tr>
-                          <th
-                            className="sortable-col"
-                            onClick={() => handleSort("supporter")}
-                          >
-                            Supporter{sortIndicator("supporter")}
-                          </th>
-                          <th
-                            className="sortable-col"
-                            onClick={() => handleSort("days")}
-                          >
-                            Days sponsored{sortIndicator("days")}
-                          </th>
-                          <th
-                            className="sortable-col"
-                            onClick={() => handleSort("sum")}
-                          >
-                            Sum of date numbers{sortIndicator("sum")}
-                          </th>
-                          <th>Payment status (overall)</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {supporterRows.map((row) => {
-                          let paymentSummary = "Unpaid";
-                          if (row.hasPaid && row.hasUnpaid) {
-                            paymentSummary = "Some dates paid, some unpaid";
-                          } else if (row.hasPaid) {
-                            paymentSummary = "All paid";
-                          }
+                        const isExpanded =
+                          expandedSupporter === row.supporterName;
 
-                          const isExpanded =
-                            expandedSupporter === row.supporterName;
-
-                          return (
-                            <React.Fragment key={row.supporterName}>
-                              <tr
-                                className="clickable-row"
-                                onClick={() => handleSupporterClick(row)}
-                              >
-                                <td>{row.supporterName}</td>
-                                <td>{row.totalDays}</td>
-                                <td>{row.sumDates}</td>
-                                <td>{paymentSummary}</td>
+                        return (
+                          <React.Fragment key={row.supporterName}>
+                            <tr
+                              className="clickable-row"
+                              onClick={() => handleSupporterClick(row)}
+                            >
+                              <td>{row.supporterName}</td>
+                              <td>{row.totalDays}</td>
+                              <td>{paymentSummary}</td>
+                            </tr>
+                            {isExpanded && (
+                              <tr>
+                                <td colSpan={3}>
+                                  <div className="supporter-detail">
+                                    <strong>
+                                      Detailed dates for {row.supporterName}
+                                    </strong>
+                                    <table className="nested-table">
+                                      <thead>
+                                        <tr>
+                                          <th>Date</th>
+                                          <th>Phone (private)</th>
+                                          <th>Payment status</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {row.dates.map((d) => {
+                                          const meta = getPaymentMeta(d);
+                                          const dateStr = `${
+                                            MONTH_NAMES[d.month - 1]
+                                          } ${d.day}, ${d.year}`;
+                                          return (
+                                            <tr key={d.id}>
+                                              <td>{dateStr}</td>
+                                              <td>{d.phone}</td>
+                                              <td>{meta.label}</td>
+                                            </tr>
+                                          );
+                                        })}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                </td>
                               </tr>
-                              {isExpanded && (
-                                <tr>
-                                  <td colSpan={4}>
-                                    <div className="supporter-detail">
-                                      <strong>
-                                        Detailed dates for {row.supporterName}
-                                      </strong>
-                                      <table className="nested-table">
-                                        <thead>
-                                          <tr>
-                                            <th>Date</th>
-                                            <th>Phone (private)</th>
-                                            <th>Payment status</th>
-                                          </tr>
-                                        </thead>
-                                        <tbody>
-                                          {row.dates.map((d) => {
-                                            const meta = getPaymentMeta(d);
-                                            const dateStr = `${
-                                              MONTH_NAMES[d.month - 1]
-                                            } ${d.day}, ${d.year}`;
-                                            return (
-                                              <tr key={d.id}>
-                                                <td>{dateStr}</td>
-                                                <td>{d.phone}</td>
-                                                <td>{meta.label}</td>
-                                              </tr>
-                                            );
-                                          })}
-                                        </tbody>
-                                      </table>
-                                    </div>
-                                  </td>
-                                </tr>
-                              )}
-                            </React.Fragment>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </section>
-            </>
+                            )}
+                          </React.Fragment>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
           ) : (
             <section style={{ padding: "1.5rem" }}>
               <p>Select a player above to see their supporters.</p>
             </section>
           )}
+
+          {/* SECOND: FOR THUNDER PLAYERS button + personal summary */}
+          <section className="supporters-summary-section">
+            <h2>For Thunder Players</h2>
+            <p>
+              Players can view their personal fundraising summary (total dates
+              sold and sum of date numbers). You&apos;ll need your 4-digit
+              player PIN from Coach Justin.
+            </p>
+            <button
+              type="button"
+              className="admin-toggle"
+              onClick={handlePlayerSummaryButton}
+            >
+              FOR THUNDER PLAYERS – View My Summary
+            </button>
+
+            {summaryPlayer && (
+              <div className="supporters-summary">
+                <h3>
+                  Fundraising Summary – {summaryPlayer.firstName}{" "}
+                  {summaryPlayer.lastName}
+                </h3>
+                <p>
+                  <strong>Total days sold:</strong> {summaryDays}
+                </p>
+                <p>
+                  <strong>Sum of date numbers:</strong> {summarySumDates}
+                </p>
+                <p className="supporter-note">
+                  Example: December 12 + August 27 = 12 + 27 = 39.
+                </p>
+              </div>
+            )}
+          </section>
         </main>
       )}
     </div>
