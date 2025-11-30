@@ -759,10 +759,22 @@ function AdminPanel({
   onEditEntry,
 }) {
   const [filter, setFilter] = useState("all"); // all | paid | unpaid
-  const [sortConfig, setSortConfig] = useState({
-    key: "date",
-    direction: "asc",
+
+  // Load pin overrides once (lazy initializer) and save inside onChange
+  const [pinOverrides, setPinOverrides] = useState(() => {
+    try {
+      const raw = localStorage.getItem(PIN_STORAGE_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch (e) {
+      console.error("Failed to load pin overrides in AdminPanel", e);
+      return {};
+    }
   });
+
+  const effectivePlayers = PLAYERS.map((p) => ({
+    ...p,
+    effectivePin: pinOverrides[p.id] ?? p.pin ?? "",
+  }));
 
   const getPaymentMeta = (entry) => {
     const owed = entry.day; // $ owed for this date
@@ -806,7 +818,7 @@ function AdminPanel({
     return true;
   });
 
-  // Wrap into rows with computed fields for easier sorting
+  // Wrap into rows with computed fields
   const rowsWithMeta = filtered.map((e) => {
     const player = PLAYERS.find((p) => p.id === e.playerId);
     const playerName = player
@@ -821,64 +833,6 @@ function AdminPanel({
       dateObj,
     };
   });
-
-  // sorting
-  const handleSort = (key) => {
-    setSortConfig((prev) => {
-      if (prev.key === key) {
-        return {
-          key,
-          direction: prev.direction === "asc" ? "desc" : "asc",
-        };
-      }
-      return { key, direction: "asc" };
-    });
-  };
-
-  const sortedRows = React.useMemo(() => {
-    if (!sortConfig?.key) return rowsWithMeta;
-    const { key, direction } = sortConfig;
-    const dir = direction === "asc" ? 1 : -1;
-
-    const getVal = (row) => {
-      const { entry, playerName, meta, dateObj } = row;
-      switch (key) {
-        case "date":
-          return dateObj.getTime();
-        case "supporter":
-          return (entry.supporterName || "").toLowerCase();
-        case "player":
-          return (playerName || "").toLowerCase();
-        case "note":
-          return (entry.note || "").toLowerCase();
-        case "phone":
-          return (entry.phone || "").toLowerCase();
-        case "zelle":
-          return meta.method === "zelle" && meta.isFullyPaid ? 1 : 0;
-        case "venmo":
-          return meta.method === "venmo" && meta.isFullyPaid ? 1 : 0;
-        case "status":
-          return meta.label.toLowerCase();
-        default:
-          return 0;
-      }
-    };
-
-    const copy = [...rowsWithMeta];
-    copy.sort((a, b) => {
-      const va = getVal(a);
-      const vb = getVal(b);
-      if (va < vb) return -1 * dir;
-      if (va > vb) return 1 * dir;
-      return 0;
-    });
-    return copy;
-  }, [rowsWithMeta, sortConfig]);
-
-  const renderSortIndicator = (columnKey) => {
-    if (sortConfig.key !== columnKey) return null;
-    return sortConfig.direction === "asc" ? " ▲" : " ▼";
-  };
 
   // Quick checkbox handler for Zelle/Venmo
   const handlePaymentCheckbox = (entry, method) => {
@@ -1038,67 +992,79 @@ function AdminPanel({
         </button>
       </div>
 
-      {sortedRows.length === 0 ? (
+      {/* Editable PINs table */}
+      <h3 className="admin-summary-title">Player Access PINs</h3>
+      <p className="admin-note">
+        These 4-digit PINs let families unlock the supporter details for their
+        player on the Supporters page. You can adjust them here at any time.
+      </p>
+      <div className="admin-table-wrapper">
+        <table className="admin-table">
+          <thead>
+            <tr>
+              <th>Number</th>
+              <th>Player</th>
+              <th>PIN (4 digits)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {effectivePlayers.map((p) => (
+              <tr key={p.id}>
+                <td>{p.number}</td>
+                <td>
+                  {p.firstName} {p.lastName}
+                </td>
+                <td>
+                  <input
+                    type="text"
+                    maxLength={4}
+                    value={p.effectivePin}
+                    onChange={(e) => {
+                      const v = e.target.value.replace(/\D/g, "").slice(0, 4);
+                      setPinOverrides((prev) => {
+                        const next = { ...prev, [p.id]: v };
+                        try {
+                          localStorage.setItem(
+                            PIN_STORAGE_KEY,
+                            JSON.stringify(next)
+                          );
+                        } catch (err) {
+                          console.error("Failed to save pin overrides", err);
+                        }
+                        return next;
+                      });
+                    }}
+                    style={{ width: "60px" }}
+                  />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Main entries table */}
+      {rowsWithMeta.length === 0 ? (
         <p>No entries match this filter.</p>
       ) : (
         <div className="admin-table-wrapper">
           <table className="admin-table">
             <thead>
               <tr>
-                <th
-                  onClick={() => handleSort("date")}
-                  style={{ cursor: "pointer" }}
-                >
-                  Date{renderSortIndicator("date")}
-                </th>
-                <th
-                  onClick={() => handleSort("supporter")}
-                  style={{ cursor: "pointer" }}
-                >
-                  Supporter{renderSortIndicator("supporter")}
-                </th>
-                <th
-                  onClick={() => handleSort("player")}
-                  style={{ cursor: "pointer" }}
-                >
-                  Player Supported{renderSortIndicator("player")}
-                </th>
-                <th
-                  onClick={() => handleSort("note")}
-                  style={{ cursor: "pointer" }}
-                >
-                  Note{renderSortIndicator("note")}
-                </th>
-                <th
-                  onClick={() => handleSort("phone")}
-                  style={{ cursor: "pointer" }}
-                >
-                  Phone (private){renderSortIndicator("phone")}
-                </th>
-                <th
-                  onClick={() => handleSort("zelle")}
-                  style={{ cursor: "pointer" }}
-                >
-                  Zelle{renderSortIndicator("zelle")}
-                </th>
-                <th
-                  onClick={() => handleSort("venmo")}
-                  style={{ cursor: "pointer" }}
-                >
-                  Venmo{renderSortIndicator("venmo")}
-                </th>
-                <th
-                  onClick={() => handleSort("status")}
-                  style={{ cursor: "pointer" }}
-                >
-                  Payment status{renderSortIndicator("status")}
-                </th>
+                <th>Date</th>
+                <th>Supporter</th>
+                <th>Player Supported</th>
+                <th>Note</th>
+                <th>Phone (private)</th>
+                <th>Zelle</th>
+                <th>Venmo</th>
+                <th>Payment status</th>
                 <th>Edit</th>
                 <th>Clear</th>
               </tr>
             </thead>
             <tbody>
-              {sortedRows.map(({ entry, playerName, meta }) => {
+              {rowsWithMeta.map(({ entry, playerName, meta }) => {
                 const zelleChecked =
                   meta.method === "zelle" && meta.isFullyPaid;
                 const venmoChecked =
@@ -1157,8 +1123,9 @@ function AdminPanel({
       {/* Raffle winners selection */}
       <h3 className="admin-summary-title">Monthly Raffle Winners</h3>
       <p className="admin-note">
-        Choose one winning day per month. Selected dates will be highlighted
-        with a yellow circle on the calendars.
+        Choose one winning day per month. The supporter who purchased that date
+        wins the raffle prize. We&apos;ll draw at a team practice and contact
+        the winning supporter.
       </p>
       <div className="admin-table-wrapper">
         <table className="admin-table">
@@ -1228,80 +1195,6 @@ function AdminPanel({
         </table>
       </div>
 
-
-{/* Player access PINs */}
-<h3 className="admin-summary-title">Player Access PINs</h3>
-<p className="admin-note">
-  These 4-digit PINs let families unlock the supporter details for their
-  player on the Supporters page. They are currently set to the last 4
-  digits of Parent Phone 2.
-</p>
-<div className="admin-table-wrapper">
-  <table className="admin-table">
-    <thead>
-      <tr>
-        <th>Number</th>
-        <th>Player</th>
-        <th>PIN (last 4)</th>
-      </tr>
-    </thead>
-    <tbody>
-      {PLAYERS.map((p) => (
-        <tr key={p.id}>
-          <td>{p.number}</td>
-          <td>
-            {p.firstName} {p.lastName}
-          </td>
-          <td>{p.pin || "—"}</td>
-        </tr>
-      ))}
-    </tbody>
-  </table>
-</div>      
-
-      {/* Player access PINs */}
-      <h3 className="admin-summary-title">Player Access PINs</h3>
-      <p className="admin-note">
-        These 4-digit PINs let families unlock the supporter details for their
-        player on the Supporters page. You can adjust them here at any time.
-      </p>
-      <div className="admin-table-wrapper">
-        <table className="admin-table">
-          <thead>
-            <tr>
-              <th>Number</th>
-              <th>Player</th>
-              <th>PIN (4 digits)</th>
-            </tr>
-          </thead>
-          <tbody>
-            {effectivePlayers.map((p) => (
-              <tr key={p.id}>
-                <td>{p.number}</td>
-                <td>
-                  {p.firstName} {p.lastName}
-                </td>
-                <td>
-                  <input
-                    type="text"
-                    maxLength={4}
-                    value={p.effectivePin}
-                    onChange={(e) => {
-                      const v = e.target.value.replace(/\D/g, "").slice(0, 4);
-                      setPinOverrides((prev) => ({
-                        ...prev,
-                        [p.id]: v,
-                      }));
-                    }}
-                    style={{ width: "60px" }}
-                  />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      
       {/* Player fundraising summary */}
       <h3 className="admin-summary-title">Player Fundraising Summary</h3>
       {summaryRows.length === 0 ? (
@@ -1335,14 +1228,13 @@ function AdminPanel({
       )}
 
       <p className="admin-note">
-        Use this view to track who has supported each player, how many days
-        are sponsored, and export a CSV snapshot of all entries and payment
-        status.
+        Use this view to track who has supported each player, how many days are
+        sponsored, adjust player PINs, and export a CSV snapshot of all entries
+        and payment status.
       </p>
     </section>
   );
 }
-
 function EditEntryModal({ entry, onClose, onSave }) {
   const [supporterName, setSupporterName] = useState(entry.supporterName || "");
   const [playerId, setPlayerId] = useState(entry.playerId || "");
