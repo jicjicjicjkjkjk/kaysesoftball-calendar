@@ -67,6 +67,7 @@ export default function App() {
     phone: "",
   });
 
+  // this is currently unused in App but kept if you want to use it later
   const [pinOverrides, setPinOverrides] = useState({});
 
   useEffect(() => {
@@ -92,7 +93,7 @@ export default function App() {
     ...p,
     effectivePin: pinOverrides[p.id] ?? p.pin ?? "",
   }));
-  
+
   // Load from localStorage on first render
   useEffect(() => {
     try {
@@ -153,22 +154,21 @@ export default function App() {
   const handleSubmitEntry = (formValues) => {
     if (!selectedDay) return;
 
-const newEntry = {
-  id: makeId(),
-  year: selectedDay.year,
-  month: selectedDay.month,
-  day: selectedDay.day,
-  playerId: formValues.playerId,
-  supporterName: formValues.supporterName,
-  note: formValues.note || "",
-  phone: formValues.phone || "",
-  // payment fields
-  paymentMethod: "unpaid", // "unpaid" | "zelle" | "venmo"
-  paymentAmount: 0,        // dollars applied to THIS date
-  paid: false,             // keep for compatibility
-  createdAt: new Date().toISOString(),
-};
-    
+    const newEntry = {
+      id: makeId(),
+      year: selectedDay.year,
+      month: selectedDay.month,
+      day: selectedDay.day,
+      playerId: formValues.playerId,
+      supporterName: formValues.supporterName,
+      note: formValues.note || "",
+      phone: formValues.phone || "",
+      // payment fields
+      paymentMethod: "unpaid", // "unpaid" | "zelle" | "venmo"
+      paymentAmount: 0, // dollars applied to THIS date
+      paid: false, // keep for compatibility
+      createdAt: new Date().toISOString(),
+    };
 
     setEntries((prev) => [...prev, newEntry]);
     setLastSupporterValues(formValues);
@@ -246,15 +246,14 @@ const newEntry = {
             </div>
             <div className="hero-text">
               <h1>Thunder 12U Teal Calendar Fundraiser</h1>
-<p>
-  As a <strong>supporter</strong>, you are buying{" "}
-  <strong>raffle tickets</strong> by choosing calendar dates. The
-  number on each date is the number of tickets you receive for that
-  month&apos;s $100 drawing. We also record which player you&apos;re
-  supporting so our players and coaches know who to thank – it
-  doesn&apos;t change your odds in the drawing.
-</p>
-              
+              <p>
+                As a <strong>supporter</strong>, you are buying{" "}
+                <strong>raffle tickets</strong> by choosing calendar dates. The
+                number on each date is the number of tickets you receive for
+                that month&apos;s $100 drawing. We also record which player
+                you&apos;re supporting so our players and coaches know who to
+                thank – it doesn&apos;t change your odds in the drawing.
+              </p>
 
               <div className="venmo-zelle">
                 <strong>Pay after you claim your date(s)</strong>
@@ -303,47 +302,68 @@ const newEntry = {
 
       {/* HOW IT WORKS SECTION */}
       <section className="how-it-works">
-  <h2>How the Thunder Calendar Fundraiser Works</h2>
-<p>
-  Each supporter chooses one or more available dates on the calendar. The number on the date is the 
-  number of raffle tickets you receive for that month’s drawing. 
-  For example, if you claim <strong>January 12</strong>, you get <strong>12 raffle tickets</strong> 
-  for the January drawing.
-</p>
+        <h2>How the Thunder Calendar Fundraiser Works</h2>
+        <p>
+          Each supporter chooses one or more available dates on the calendar.
+          The number on the date is the number of raffle tickets you receive for
+          that month’s drawing. For example, if you claim{" "}
+          <strong>January 12</strong>, you get{" "}
+          <strong>12 raffle tickets</strong> for the January drawing.
+        </p>
 
-<p>
-  Because we run this fundraiser during softball season, we combine in-season and out-of-season months 
-  so drawings can be held when the team is together. We will draw winners on the schedule below:
-</p>
+        <p>
+          Because we run this fundraiser during softball season, we combine
+          in-season and out-of-season months so drawings can be held when the
+          team is together. We will draw winners on the schedule below:
+        </p>
 
-<ul>
-  <li><strong>January drawing:</strong> includes January & August dates</li>
-  <li><strong>February drawing:</strong> includes February & September dates</li>
-  <li><strong>March drawing:</strong> includes March & October dates</li>
-  <li><strong>April drawing:</strong> includes April & November dates</li>
-  <li><strong>May drawing:</strong> includes May & December dates</li>
-  <li><strong>June drawing:</strong> includes June dates only</li>
-  <li><strong>July drawing:</strong> includes July dates only</li>
-</ul>
+        <ul>
+          <li>
+            <strong>January drawing:</strong> includes January &amp; August dates
+          </li>
+          <li>
+            <strong>February drawing:</strong> includes February &amp; September
+            dates
+          </li>
+          <li>
+            <strong>March drawing:</strong> includes March &amp; October dates
+          </li>
+          <li>
+            <strong>April drawing:</strong> includes April &amp; November dates
+          </li>
+          <li>
+            <strong>May drawing:</strong> includes May &amp; December dates
+          </li>
+          <li>
+            <strong>June drawing:</strong> includes June dates only
+          </li>
+          <li>
+            <strong>July drawing:</strong> includes July dates only
+          </li>
+        </ul>
 
-<p>
-  At some point during each month — when Thunder 12U Teal is together for practice — 
-  we will pull one winner for <strong>$100</strong> and contact the supporter directly by text or email.
-</p>
+        <p>
+          At some point during each month — when Thunder 12U Teal is together
+          for practice — we will pull one winner for <strong>$100</strong> and
+          contact the supporter directly by text or email.
+        </p>
 
-<p>
-  When you claim a date, you also select which player you’re supporting. This is 
-  <strong>only</strong> so our players and coaches know who to thank — it does 
-  <strong>not affect your raffle chances</strong>.
-</p>
+        <p>
+          When you claim a date, you also select which player you’re supporting.
+          This is <strong>only</strong> so our players and coaches know who to
+          thank — it does <strong>not affect your raffle chances</strong>.
+        </p>
 
-<p>
-  At any time, you can visit the <strong>Supporters</strong> page to verify your dates and 
-  confirm that your payment has been received.
-</p>
+        <p>
+          At any time, you can visit the <strong>Supporters</strong> page to
+          verify your dates and confirm that your payment has been received.
+        </p>
 
-<p><strong>Thank you for supporting Thunder 12U Teal!</strong></p>
-        
+        <p>
+          <strong>Thank you for supporting Thunder 12U Teal!</strong>
+        </p>
+      </section>
+
       {/* MAIN CALENDAR AREA */}
       <section className="calendar-section">
         {selectedMonthIndex === null ? (
@@ -404,16 +424,16 @@ const newEntry = {
         />
       )}
 
-     {showAdmin && (
-  <AdminPanel
-    entries={entries}
-    raffleWinners={raffleWinners}
-    onSetRaffleWinner={handleSetRaffleWinner}
-    onQuickUpdateEntry={handleSaveEditedEntry}
-    onDelete={handleDeleteEntry}
-    onEditEntry={handleStartEditEntry}
-  />
-)}
+      {showAdmin && (
+        <AdminPanel
+          entries={entries}
+          raffleWinners={raffleWinners}
+          onSetRaffleWinner={handleSetRaffleWinner}
+          onQuickUpdateEntry={handleSaveEditedEntry}
+          onDelete={handleDeleteEntry}
+          onEditEntry={handleStartEditEntry}
+        />
+      )}
 
       {editingEntry && (
         <EditEntryModal
@@ -423,14 +443,14 @@ const newEntry = {
         />
       )}
 
-            <footer className="footer">
+      <footer className="footer">
         <div className="footer-contact">
           <strong>Questions?</strong>{" "}
           <a href="mailto:jkayse@hotmail.com">Email Coach Justin</a>
         </div>
         <small>© {CURRENT_YEAR} Kayse Softball • kaysesoftball.com</small>
       </footer>
-    </section>
+    </div>
   );
 }
 
@@ -604,14 +624,14 @@ function DatePromptModal({ dayInfo, onCancel, onClaim }) {
         <h2>
           Claim {monthName} {dayInfo.day}?
         </h2>
-  <p className="modal-text">
-  You are the <strong>supporter</strong> purchasing this date and the
-  raffle tickets that come with it. Choosing a player simply tells us
-  who you&apos;re supporting so coaches and players know who to thank –
-  it doesn&apos;t change your raffle chances. Your phone is only used
-  for payment questions and prize notification.
-</p>
-        
+        <p className="modal-text">
+          You are the <strong>supporter</strong> purchasing this date and the
+          raffle tickets that come with it. Choosing a player simply tells us
+          who you&apos;re supporting so coaches and players know who to thank –
+          it doesn&apos;t change your raffle chances. Your phone is only used
+          for payment questions and prize notification.
+        </p>
+
         <div className="modal-buttons">
           <button type="button" onClick={onCancel}>
             Cancel
@@ -1244,6 +1264,7 @@ function AdminPanel({
     </section>
   );
 }
+
 function EditEntryModal({ entry, onClose, onSave }) {
   const [supporterName, setSupporterName] = useState(entry.supporterName || "");
   const [playerId, setPlayerId] = useState(entry.playerId || "");
