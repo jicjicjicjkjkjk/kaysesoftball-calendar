@@ -257,7 +257,7 @@ const newEntry = {
               
 
               <div className="venmo-zelle">
-                <strong>Step 2: Pay after you claim your date(s)</strong>
+                <strong>Pay after you claim your date(s)</strong>
                 <div className="venmo-links">
                   <span>
                     Venmo:{" "}
