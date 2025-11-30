@@ -402,13 +402,18 @@ export default function App() {
                     </span>
                   </div>
                 </div>
-                <div className="venmo-qr-wrap">
-                  <img
-                    src="/venmo-qr.png"
-                    alt="Venmo QR for @Justin-Kayse"
-                    className="venmo-qr"
-                  />
-                </div>
+                  <div className="venmo-qr-wrap">
+    <img
+      src="/venmo-qr.png"
+      alt="Venmo QR for @Justin-Kayse"
+      className="venmo-qr"
+    />
+    <img
+      src="/qr-zelle.jpeg"
+      alt="Zelle QR for 630-698-8769"
+      className="venmo-qr"
+    />
+  </div>
               </div>
             </div>
           </div>
@@ -584,13 +589,16 @@ export default function App() {
       )}
 
       <footer className="footer">
-        <div className="footer-contact">
-          <strong>Questions?</strong>{" "}
-          <a href="mailto:jkayse@hotmail.com">Email Coach Justin</a> or text{" "}
-          <strong>630-698-8769</strong>.
-        </div>
-        <small>© {CURRENT_YEAR} Kayse Softball • kaysesoftball.com</small>
-      </footer>
+  <div className="footer-contact">
+    <strong>Questions?</strong>{" "}
+    <a href="mailto:jkayse@hotmail.com">Email Coach Justin</a> or text{" "}
+    <a href="sms:16306988769">
+      <strong>630-698-8769</strong>
+    </a>
+    .
+  </div>
+  <small>© {CURRENT_YEAR} Kayse Softball • kaysesoftball.com</small>
+    </footer>
     </div>
   );
 }
