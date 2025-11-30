@@ -804,7 +804,550 @@ function AdminPanel({
   onEditEntry,
 }) {
   const [filter, setFilter] = useState("all"); // all | paid | unpaid
+  const [sortConfig, setSortConfig] = useState({
+    key: "date", // "date" | "supporter" | "player" | "status"
+    direction: "asc", // "asc" | "desc"
+  });
 
+  // Load pin overrides once (lazy initializer) and save inside onChange
+  const [pinOverrides, setPinOverrides] = useState(() => {
+    try {
+      const raw = localStorage.getItem(PIN_STORAGE_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch (e) {
+      console.error("Failed to load pin overrides in AdminPanel", e);
+      return {};
+    }
+  });
+
+  const effectivePlayers = PLAYERS.map((p) => ({
+    ...p,
+    effectivePin: pinOverrides[p.id] ?? p.pin ?? "",
+  }));
+
+  const getPaymentMeta = (entry) => {
+    const owed = entry.day; // $ owed for this date
+    const methodRaw = entry.paymentMethod || "unpaid";
+    const amount = Number(entry.paymentAmount || 0);
+
+    const method =
+      methodRaw === "zelle" || methodRaw === "venmo" ? methodRaw : "unpaid";
+
+    const isPaid = method !== "unpaid" && amount > 0;
+    const isFullyPaid = isPaid && amount >= owed;
+
+    let label;
+    if (!isPaid) {
+      label = "Unpaid";
+    } else {
+      const base = method === "zelle" ? "Paid via Zelle" : "Paid via Venmo";
+      if (isFullyPaid) {
+        label = `${base} (full $${amount})`;
+      } else {
+        label = `${base} (partial $${amount} of $${owed})`;
+      }
+    }
+
+    return { owed, amount, method, isPaid, isFullyPaid, label };
+  };
+
+  // base chronological sort for CSV + default
+  const baseSorted = [...entries].sort((a, b) => {
+    const da = new Date(a.year, a.month - 1, a.day);
+    const db = new Date(b.year, b.month - 1, b.day);
+    return da - db;
+  });
+
+  // filter by paid/unpaid
+  const filtered = baseSorted.filter((e) => {
+    const meta = getPaymentMeta(e);
+    if (filter === "paid") return meta.isPaid;
+    if (filter === "unpaid") return !meta.isPaid;
+    return true;
+  });
+
+  // Wrap into rows with computed fields
+  const rowsWithMeta = filtered.map((e) => {
+    const player = PLAYERS.find((p) => p.id === e.playerId);
+    const playerName = player
+      ? `${player.firstName} ${player.lastName}`
+      : "Unknown";
+    const dateObj = new Date(e.year, e.month - 1, e.day);
+    const meta = getPaymentMeta(e);
+    return {
+      entry: e,
+      playerName,
+      meta,
+      dateObj,
+    };
+  });
+
+  // --- SORTING LOGIC ---
+  const sortedRows = [...rowsWithMeta].sort((a, b) => {
+    const dir = sortConfig.direction === "asc" ? 1 : -1;
+    switch (sortConfig.key) {
+      case "date":
+        if (a.dateObj < b.dateObj) return -1 * dir;
+        if (a.dateObj > b.dateObj) return 1 * dir;
+        return 0;
+      case "supporter": {
+        const sa = (a.entry.supporterName || "").toLowerCase();
+        const sb = (b.entry.supporterName || "").toLowerCase();
+        if (sa < sb) return -1 * dir;
+        if (sa > sb) return 1 * dir;
+        return 0;
+      }
+      case "player": {
+        const pa = (a.playerName || "").toLowerCase();
+        const pb = (b.playerName || "").toLowerCase();
+        if (pa < pb) return -1 * dir;
+        if (pa > pb) return 1 * dir;
+        return 0;
+      }
+      case "status": {
+        const sa = (a.meta.label || "").toLowerCase();
+        const sb = (b.meta.label || "").toLowerCase();
+        if (sa < sb) return -1 * dir;
+        if (sa > sb) return 1 * dir;
+        return 0;
+      }
+      default:
+        return 0;
+    }
+  });
+
+  const handleSort = (key) => {
+    setSortConfig((prev) => {
+      if (prev.key === key) {
+        return {
+          key,
+          direction: prev.direction === "asc" ? "desc" : "asc",
+        };
+      }
+      return { key, direction: "asc" };
+    });
+  };
+
+  const sortIndicator = (key) => {
+    if (sortConfig.key !== key) return "";
+    return sortConfig.direction === "asc" ? " ▲" : " ▼";
+  };
+
+  // Quick checkbox handler for Zelle/Venmo
+  const handlePaymentCheckbox = (entry, method) => {
+    const meta = getPaymentMeta(entry);
+    const owed = meta.owed;
+
+    // If this method is already full-paid, uncheck => unpaid
+    if (meta.method === method && meta.isFullyPaid) {
+      onQuickUpdateEntry({
+        ...entry,
+        paymentMethod: "unpaid",
+        paymentAmount: 0,
+        paid: false,
+      });
+      return;
+    }
+
+    // Otherwise, set to full payment via that method
+    onQuickUpdateEntry({
+      ...entry,
+      paymentMethod: method,
+      paymentAmount: owed,
+      paid: true,
+    });
+  };
+
+  // Player fundraising summary
+  const summaryByPlayerId = new Map();
+  for (const e of entries) {
+    if (!e.playerId) continue;
+    if (!summaryByPlayerId.has(e.playerId)) {
+      summaryByPlayerId.set(e.playerId, { days: 0, dayNumberSum: 0 });
+    }
+    const rec = summaryByPlayerId.get(e.playerId);
+    rec.days += 1;
+    rec.dayNumberSum += e.day;
+  }
+
+  const summaryRows = Array.from(summaryByPlayerId.entries()).map(
+    ([playerId, { days, dayNumberSum }]) => {
+      const player = PLAYERS.find((p) => p.id === playerId);
+      return {
+        playerName: player
+          ? `${player.firstName} ${player.lastName}`
+          : "Unknown",
+        days,
+        dayNumberSum,
+      };
+    }
+  );
+
+  const monthsForRaffle = MONTH_NAMES.map((name, idx) => ({
+    name,
+    month: idx + 1,
+  }));
+
+  // CSV export uses chronological baseSorted
+  const handleExportCsv = () => {
+    const header = [
+      "Date",
+      "Supporter",
+      "Player",
+      "Note",
+      "Phone",
+      "Owed",
+      "PaymentAmount",
+      "PaymentMethod",
+      "PaymentStatus",
+    ];
+
+    const lines = [header.join(",")];
+
+    for (const e of baseSorted) {
+      const meta = getPaymentMeta(e);
+      const player = PLAYERS.find((p) => p.id === e.playerId);
+      const playerName = player
+        ? `${player.firstName} ${player.lastName}`
+        : "Unknown";
+      const dateStr = `${MONTH_NAMES[e.month - 1]} ${e.day}, ${e.year}`;
+
+      const escape = (val) => {
+        const s = val == null ? "" : String(val);
+        if (s.includes('"') || s.includes(",") || s.includes("\n")) {
+          return `"${s.replace(/"/g, '""')}"`;
+        }
+        return s;
+      };
+
+      const row = [
+        dateStr,
+        escape(e.supporterName || ""),
+        escape(playerName),
+        escape(e.note || ""),
+        escape(e.phone || ""),
+        meta.owed,
+        meta.amount,
+        meta.method === "unpaid"
+          ? "unpaid"
+          : meta.method === "zelle"
+          ? "zelle"
+          : "venmo",
+        escape(meta.label),
+      ];
+
+      lines.push(row.join(","));
+    }
+
+    const blob = new Blob([lines.join("\n")], {
+      type: "text/csv;charset=utf-8;",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "thunder-calendar-entries.csv";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <section className="admin-panel">
+      <h2>Admin View – Sponsors, Payments & Player Summary</h2>
+
+      <div className="admin-filters">
+        <span>Show:</span>
+        <button
+          type="button"
+          className={filter === "all" ? "filter-button active" : "filter-button"}
+          onClick={() => setFilter("all")}
+        >
+          All
+        </button>
+        <button
+          type="button"
+          className={filter === "paid" ? "filter-button active" : "filter-button"}
+          onClick={() => setFilter("paid")}
+        >
+          Paid (any method)
+        </button>
+        <button
+          type="button"
+          className={
+            filter === "unpaid" ? "filter-button active" : "filter-button"
+          }
+          onClick={() => setFilter("unpaid")}
+        >
+          Unpaid
+        </button>
+        <button
+          type="button"
+          className="filter-button"
+          onClick={handleExportCsv}
+          style={{ marginLeft: "auto" }}
+        >
+          Export CSV
+        </button>
+      </div>
+
+      {/* Editable PINs table */}
+      <h3 className="admin-summary-title">Player Access PINs</h3>
+      <p className="admin-note">
+        These 4-digit PINs let families unlock the supporter details for their
+        player on the Supporters page. You can adjust them here at any time.
+      </p>
+      <div className="admin-table-wrapper">
+        <table className="admin-table">
+          <thead>
+            <tr>
+              <th>Number</th>
+              <th>Player</th>
+              <th>PIN (4 digits)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {effectivePlayers.map((p) => (
+              <tr key={p.id}>
+                <td>{p.number}</td>
+                <td>
+                  {p.firstName} {p.lastName}
+                </td>
+                <td>
+                  <input
+                    type="text"
+                    maxLength={4}
+                    value={p.effectivePin}
+                    onChange={(e) => {
+                      const v = e.target.value.replace(/\D/g, "").slice(0, 4);
+                      setPinOverrides((prev) => {
+                        const next = { ...prev, [p.id]: v };
+                        try {
+                          localStorage.setItem(
+                            PIN_STORAGE_KEY,
+                            JSON.stringify(next)
+                          );
+                        } catch (err) {
+                          console.error("Failed to save pin overrides", err);
+                        }
+                        return next;
+                      });
+                    }}
+                    style={{ width: "60px" }}
+                  />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Main entries table */}
+      {sortedRows.length === 0 ? (
+        <p>No entries match this filter.</p>
+      ) : (
+        <div className="admin-table-wrapper">
+          <table className="admin-table">
+            <thead>
+              <tr>
+                <th onClick={() => handleSort("date")} className="sortable-col">
+                  Date{sortIndicator("date")}
+                </th>
+                <th
+                  onClick={() => handleSort("supporter")}
+                  className="sortable-col"
+                >
+                  Supporter{sortIndicator("supporter")}
+                </th>
+                <th onClick={() => handleSort("player")} className="sortable-col">
+                  Player Supported{sortIndicator("player")}
+                </th>
+                <th>Note</th>
+                <th>Phone (private)</th>
+                <th>Zelle</th>
+                <th>Venmo</th>
+                <th
+                  onClick={() => handleSort("status")}
+                  className="sortable-col"
+                >
+                  Payment status{sortIndicator("status")}
+                </th>
+                <th>Edit</th>
+                <th>Clear</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sortedRows.map(({ entry, playerName, meta }) => {
+                const zelleChecked =
+                  meta.method === "zelle" && meta.isFullyPaid;
+                const venmoChecked =
+                  meta.method === "venmo" && meta.isFullyPaid;
+
+                return (
+                  <tr key={entry.id}>
+                    <td>
+                      {MONTH_NAMES[entry.month - 1]} {entry.day}, {entry.year}
+                    </td>
+                    <td>{entry.supporterName}</td>
+                    <td>{playerName}</td>
+                    <td>{entry.note}</td>
+                    <td>{entry.phone}</td>
+                    <td>
+                      <input
+                        type="checkbox"
+                        checked={zelleChecked}
+                        onChange={() => handlePaymentCheckbox(entry, "zelle")}
+                      />
+                    </td>
+                    <td>
+                      <input
+                        type="checkbox"
+                        checked={venmoChecked}
+                        onChange={() => handlePaymentCheckbox(entry, "venmo")}
+                      />
+                    </td>
+                    <td>{meta.label}</td>
+                    <td>
+                      <button
+                        type="button"
+                        className="link-button"
+                        onClick={() => onEditEntry(entry)}
+                      >
+                        Edit
+                      </button>
+                    </td>
+                    <td>
+                      <button
+                        type="button"
+                        className="link-button"
+                        onClick={() => onDelete(entry.id)}
+                      >
+                        Clear
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Raffle winners selection */}
+      <h3 className="admin-summary-title">Monthly Raffle Winners</h3>
+      <p className="admin-note">
+        Choose one winning day per month. The supporter who purchased that date
+        wins the raffle prize. We&apos;ll draw at a team practice and contact
+        the winning supporter.
+      </p>
+      <div className="admin-table-wrapper">
+        <table className="admin-table">
+          <thead>
+            <tr>
+              <th>Month</th>
+              <th>Winning Day</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {monthsForRaffle.map((m) => {
+              const key = `${CURRENT_YEAR}-${m.month}`;
+              const selectedDay = raffleWinners[key] || "";
+              const daysInMonth = new Date(
+                CURRENT_YEAR,
+                m.month,
+                0
+              ).getDate();
+              const options = [];
+              for (let d = 1; d <= daysInMonth; d++) {
+                options.push(d);
+              }
+              return (
+                <tr key={m.month}>
+                  <td>{m.name}</td>
+                  <td>
+                    <select
+                      value={selectedDay}
+                      onChange={(e) =>
+                        onSetRaffleWinner(
+                          CURRENT_YEAR,
+                          m.month,
+                          e.target.value ? Number(e.target.value) : null
+                        )
+                      }
+                    >
+                      <option value="">— none —</option>
+                      {options.map((d) => (
+                        <option key={d} value={d}>
+                          {d}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                  <td>
+                    {selectedDay ? (
+                      <button
+                        type="button"
+                        className="link-button"
+                        onClick={() =>
+                          onSetRaffleWinner(CURRENT_YEAR, m.month, null)
+                        }
+                      >
+                        Clear winner
+                      </button>
+                    ) : (
+                      <span style={{ fontSize: "0.8rem", color: "#666" }}>
+                        No winner selected
+                      </span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Player fundraising summary */}
+      <h3 className="admin-summary-title">Player Fundraising Summary</h3>
+      {summaryRows.length === 0 ? (
+        <p>No days claimed yet.</p>
+      ) : (
+        <div className="admin-table-wrapper">
+          <table className="admin-table">
+            <thead>
+              <tr>
+                <th>Player</th>
+                <th>Days sponsored</th>
+                <th>
+                  Sum of date numbers{" "}
+                  <span className="summary-hint">
+                    (e.g., December 12 + August 27 = 12 + 27 = 39)
+                  </span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {summaryRows.map((row) => (
+                <tr key={row.playerName}>
+                  <td>{row.playerName}</td>
+                  <td>{row.days}</td>
+                  <td>{row.dayNumberSum}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <p className="admin-note">
+        Use this view to track who has supported each player, how many days are
+        sponsored, adjust player PINs, and export a CSV snapshot of all entries
+        and payment status.
+      </p>
+    </section>
+  );
+}
   // Local pin overrides used to render table + update localStorage
   const [pinOverrides, setPinOverrides] = useState(() => {
     try {
