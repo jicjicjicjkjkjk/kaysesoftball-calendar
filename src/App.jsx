@@ -343,6 +343,7 @@ const newEntry = {
 </p>
 
 <p><strong>Thank you for supporting Thunder 12U Teal!</strong></p>
+        
       {/* MAIN CALENDAR AREA */}
       <section className="calendar-section">
         {selectedMonthIndex === null ? (
