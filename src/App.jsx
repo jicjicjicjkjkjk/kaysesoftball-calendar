@@ -1257,7 +1257,49 @@ function AdminPanel({
   </table>
 </div>      
 
-
+      {/* Player access PINs */}
+      <h3 className="admin-summary-title">Player Access PINs</h3>
+      <p className="admin-note">
+        These 4-digit PINs let families unlock the supporter details for their
+        player on the Supporters page. You can adjust them here at any time.
+      </p>
+      <div className="admin-table-wrapper">
+        <table className="admin-table">
+          <thead>
+            <tr>
+              <th>Number</th>
+              <th>Player</th>
+              <th>PIN (4 digits)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {effectivePlayers.map((p) => (
+              <tr key={p.id}>
+                <td>{p.number}</td>
+                <td>
+                  {p.firstName} {p.lastName}
+                </td>
+                <td>
+                  <input
+                    type="text"
+                    maxLength={4}
+                    value={p.effectivePin}
+                    onChange={(e) => {
+                      const v = e.target.value.replace(/\D/g, "").slice(0, 4);
+                      setPinOverrides((prev) => ({
+                        ...prev,
+                        [p.id]: v,
+                      }));
+                    }}
+                    style={{ width: "60px" }}
+                  />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      
       {/* Player fundraising summary */}
       <h3 className="admin-summary-title">Player Fundraising Summary</h3>
       {summaryRows.length === 0 ? (
