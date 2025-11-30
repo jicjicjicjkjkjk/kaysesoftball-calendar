@@ -1,8 +1,9 @@
-// src/App.jsx
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "./supabaseClient";
 import { PLAYERS } from "./players";
+
+/* ---------- CONSTANTS / HELPERS ---------- */
 
 const MONTH_NAMES = [
   "January",
@@ -23,8 +24,6 @@ const WEEKDAY_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 const CURRENT_YEAR = new Date().getFullYear();
 
-const raffleKey = (year, month) => `${year}-${month}`;
-
 function buildCalendarCells(year, monthIndex) {
   const first = new Date(year, monthIndex, 1);
   const startOffset = first.getDay(); // 0 = Sun ... 6 = Sat
@@ -43,111 +42,96 @@ function buildCalendarCells(year, monthIndex) {
   return cells;
 }
 
+// Map DB row -> app entry
+function mapEntryFromRow(row) {
+  return {
+    id: row.id,
+    year: row.year,
+    month: row.month,
+    day: row.day,
+    supporterName: row.supporter_name,
+    playerId: row.player_id,
+    note: row.note || "",
+    phone: row.phone || "",
+    paymentMethod: row.payment_method || "unpaid",
+    paymentAmount: Number(row.payment_amount || 0),
+    createdAt: row.created_at,
+  };
+}
+
+/* ---------- MAIN APP COMPONENT ---------- */
+
 export default function App() {
   const [entries, setEntries] = useState([]);
-  const [selectedDay, setSelectedDay] = useState(null); // {year,month,day}
+  const [raffleWinners, setRaffleWinners] = useState({}); // key `${year}-${month}` -> day
+  const [playerPins, setPlayerPins] = useState({}); // playerId -> pin string
+
+  const [selectedDay, setSelectedDay] = useState(null);
   const [showDatePrompt, setShowDatePrompt] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
-  const [selectedMonthIndex, setSelectedMonthIndex] = useState(null); // null = overview
+  const [selectedMonthIndex, setSelectedMonthIndex] = useState(null);
   const [viewedEntry, setViewedEntry] = useState(null);
   const [showEntryDetails, setShowEntryDetails] = useState(false);
   const [editingEntry, setEditingEntry] = useState(null);
   const [hasAdminAccess, setHasAdminAccess] = useState(false);
-  const [raffleWinners, setRaffleWinners] = useState({});
   const [lastSupporterValues, setLastSupporterValues] = useState({
     supporterName: "",
     playerId: "",
     note: "",
     phone: "",
   });
-  const [pinOverrides, setPinOverrides] = useState({});
-  const [loadingInitial, setLoadingInitial] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // ---------- INITIAL LOAD FROM SUPABASE ----------
+  // Load everything on mount
   useEffect(() => {
-    const loadAll = async () => {
-      try {
-        await Promise.all([
-          refreshEntriesFromSupabase(),
-          loadPinsFromSupabase(),
-          loadRaffleWinnersFromSupabase(),
-        ]);
-      } finally {
-        setLoadingInitial(false);
-      }
-    };
-    loadAll();
+    loadAllSharedData();
   }, []);
 
-  const refreshEntriesFromSupabase = async () => {
+  async function loadAllSharedData() {
+    setIsLoading(true);
     try {
-      const { data, error } = await supabase
-        .from("calendar_entries")
-        .select(
-          "id, year, month, day, player_id, supporter_name, note, phone, payment_method, payment_amount, created_at"
-        )
-        .order("year", { ascending: true })
-        .order("month", { ascending: true })
-        .order("day", { ascending: true });
+      const [entriesRes, winnersRes, pinsRes] = await Promise.all([
+        supabase
+          .from("calendar_entries")
+          .select("*")
+          .eq("year", CURRENT_YEAR)
+          .order("month", { ascending: true })
+          .order("day", { ascending: true }),
+        supabase.from("raffle_winners").select("*").eq("year", CURRENT_YEAR),
+        supabase.from("player_pins").select("*"),
+      ]);
 
-      if (error) throw error;
+      if (entriesRes.error) throw entriesRes.error;
+      if (winnersRes.error) throw winnersRes.error;
+      if (pinsRes.error) throw pinsRes.error;
 
-      const mapped = (data || []).map((row) => ({
-        id: row.id,
-        year: row.year,
-        month: row.month,
-        day: row.day,
-        playerId: row.player_id,
-        supporterName: row.supporter_name,
-        note: row.note || "",
-        phone: row.phone || "",
-        paymentMethod: row.payment_method || "unpaid",
-        paymentAmount: Number(row.payment_amount || 0),
-        createdAt: row.created_at,
-      }));
-      setEntries(mapped);
-    } catch (err) {
-      console.error("Error loading calendar_entries from Supabase", err);
-    }
-  };
+      const mappedEntries = (entriesRes.data || []).map(mapEntryFromRow);
+      setEntries(mappedEntries);
 
-  const loadPinsFromSupabase = async () => {
-    try {
-      const { data, error } = await supabase
-        .from("player_pins")
-        .select("player_id, pin");
-      if (error) throw error;
-
-      const map = {};
-      (data || []).forEach((row) => {
-        map[row.player_id] = row.pin || "";
+      const winnersMap = {};
+      (winnersRes.data || []).forEach((row) => {
+        winnersMap[`${row.year}-${row.month}`] = row.winning_day;
       });
-      setPinOverrides(map);
-    } catch (err) {
-      console.error("Error loading player_pins from Supabase", err);
-    }
-  };
+      setRaffleWinners(winnersMap);
 
-  const loadRaffleWinnersFromSupabase = async () => {
-    try {
-      const { data, error } = await supabase
-        .from("raffle_winners")
-        .select("key, year, month, winner_day");
-      if (error) throw error;
-
-      const map = {};
-      (data || []).forEach((row) => {
-        const key = row.key || raffleKey(row.year, row.month);
-        map[key] = row.winner_day || null;
+      const pinMap = {};
+      (pinsRes.data || []).forEach((row) => {
+        pinMap[row.player_id] = row.pin || "";
       });
-      setRaffleWinners(map);
+      setPlayerPins(pinMap);
     } catch (err) {
-      console.error("Error loading raffle_winners from Supabase", err);
+      console.error("Error loading shared data from Supabase", err);
+      alert(
+        "There was a problem loading the shared calendar from the database. You can try refreshing the page."
+      );
+    } finally {
+      setIsLoading(false);
     }
-  };
+  }
 
-  // ---------- HANDLERS: DAYS & ENTRIES ----------
+  /* ---------- ENTRY CRUD (Supabase) ---------- */
+
   const handleDayClick = (year, month, day) => {
     const existing = entries.find(
       (e) => e.year === year && e.month === month && e.day === day
@@ -169,87 +153,43 @@ export default function App() {
   const handleSubmitEntry = async (formValues) => {
     if (!selectedDay) return;
 
-    const newEntryBase = {
+    const payload = {
       year: selectedDay.year,
       month: selectedDay.month,
       day: selectedDay.day,
-      playerId: formValues.playerId,
-      supporterName: formValues.supporterName,
+      supporter_name: formValues.supporterName,
+      player_id: formValues.playerId,
       note: formValues.note || "",
       phone: formValues.phone || "",
-      paymentMethod: "unpaid", // unpaid | zelle | venmo
-      paymentAmount: 0,
-      createdAt: new Date().toISOString(),
+      payment_method: "unpaid",
+      payment_amount: 0,
     };
-
-    // Optimistic UI: add immediately
-    setEntries((prev) => [
-      ...prev,
-      { ...newEntryBase, id: `local-${Date.now()}` },
-    ]);
-    setLastSupporterValues(formValues);
-    setShowForm(false);
-    setSelectedDay(null);
 
     try {
       const { data, error } = await supabase
         .from("calendar_entries")
-        .insert({
-          year: newEntryBase.year,
-          month: newEntryBase.month,
-          day: newEntryBase.day,
-          player_id: newEntryBase.playerId,
-          supporter_name: newEntryBase.supporterName,
-          note: newEntryBase.note,
-          phone: newEntryBase.phone,
-          payment_method: newEntryBase.paymentMethod,
-          payment_amount: newEntryBase.paymentAmount,
-          created_at: newEntryBase.createdAt,
-        })
+        .insert([payload])
         .select()
         .single();
 
       if (error) throw error;
 
-      // Replace the local placeholder with real row
-      setEntries((prev) => {
-        const withoutLocal = prev.filter(
-          (e) =>
-            !String(e.id).startsWith("local-") ||
-            e.day !== newEntryBase.day ||
-            e.month !== newEntryBase.month ||
-            e.year !== newEntryBase.year
-        );
-        return [
-          ...withoutLocal,
-          {
-            id: data.id,
-            year: data.year,
-            month: data.month,
-            day: data.day,
-            playerId: data.player_id,
-            supporterName: data.supporter_name,
-            note: data.note || "",
-            phone: data.phone || "",
-            paymentMethod: data.payment_method || "unpaid",
-            paymentAmount: Number(data.payment_amount || 0),
-            createdAt: data.created_at,
-          },
-        ];
-      });
+      const newEntry = mapEntryFromRow(data);
+      setEntries((prev) => [...prev, newEntry]);
+      setLastSupporterValues(formValues);
+      setShowForm(false);
+      setSelectedDay(null);
     } catch (err) {
-      console.error("Error inserting entry to Supabase", err);
+      console.error("Error saving entry to Supabase", err);
       alert(
-        "There was a problem saving to the shared database. Your device may be out of sync."
+        "There was a problem saving to the shared database. Please try again."
       );
-      // Refresh from server to re-sync
-      refreshEntriesFromSupabase();
     }
   };
 
   const handleDeleteEntry = async (id) => {
     if (!window.confirm("Clear this day?")) return;
-    // optimistic
+
     const prevEntries = entries;
     setEntries((prev) => prev.filter((e) => e.id !== id));
 
@@ -261,56 +201,53 @@ export default function App() {
       if (error) throw error;
     } catch (err) {
       console.error("Error deleting entry", err);
-      alert("Error deleting from shared database; reloading entries.");
-      setEntries(prevEntries);
-      refreshEntriesFromSupabase();
+      alert("Error deleting from the shared database. Reloading data.");
+      setEntries(prevEntries); // rollback
+      loadAllSharedData();
     }
   };
 
   const handleSaveEditedEntry = async (updated) => {
-    setEditingEntry(null);
+    const payload = {
+      supporter_name: updated.supporterName,
+      player_id: updated.playerId,
+      note: updated.note || "",
+      phone: updated.phone || "",
+      payment_method: updated.paymentMethod || "unpaid",
+      payment_amount: updated.paymentAmount || 0,
+    };
 
-    // optimistic UI
-    setEntries((prev) => prev.map((e) => (e.id === updated.id ? updated : e)));
+    const prevEntries = entries;
+    setEntries((prev) =>
+      prev.map((e) => (e.id === updated.id ? updated : e))
+    );
+    setEditingEntry(null);
 
     try {
       const { error } = await supabase
         .from("calendar_entries")
-        .update({
-          supporter_name: updated.supporterName,
-          player_id: updated.playerId,
-          note: updated.note,
-          phone: updated.phone,
-          payment_method: updated.paymentMethod || "unpaid",
-          payment_amount: Number(updated.paymentAmount || 0),
-        })
+        .update(payload)
         .eq("id", updated.id);
-
       if (error) throw error;
     } catch (err) {
-      console.error("Error updating entry in Supabase", err);
-      alert("Error saving changes to shared database; reloading entries.");
-      refreshEntriesFromSupabase();
+      console.error("Error updating entry", err);
+      alert("Error saving changes to the shared database. Reloading data.");
+      setEntries(prevEntries);
+      loadAllSharedData();
     }
   };
 
-  const handleSelectMonth = (idx) => {
-    setSelectedMonthIndex(idx);
-  };
+  /* ---------- ADMIN CONTROLS ---------- */
 
-  const handleBackToOverview = () => {
-    setSelectedMonthIndex(null);
-  };
+  const handleSelectMonth = (idx) => setSelectedMonthIndex(idx);
+  const handleBackToOverview = () => setSelectedMonthIndex(null);
 
-  const handleStartEditEntry = (entry) => {
-    setEditingEntry(entry);
-  };
+  const handleStartEditEntry = (entry) => setEditingEntry(entry);
 
-  // ---------- ADMIN ACCESS ----------
   const handleAdminToggleClick = () => {
     if (!hasAdminAccess) {
       const value = window.prompt("Coach password:");
-      if (value === null) return; // cancelled
+      if (value === null) return;
       if (value !== "thunderboom") {
         alert("Incorrect password.");
         return;
@@ -320,85 +257,65 @@ export default function App() {
     setShowAdmin((prev) => !prev);
   };
 
-  // ---------- RAFFLE WINNERS (DB) ----------
   const handleSetRaffleWinner = async (year, month, dayOrNull) => {
-    const key = raffleKey(year, month);
+    const winningDay = dayOrNull || null;
+    const key = `${year}-${month}`;
+
+    const previous = raffleWinners;
 
     setRaffleWinners((prev) => {
       const next = { ...prev };
-      if (!dayOrNull) {
-        delete next[key];
-      } else {
-        next[key] = dayOrNull;
-      }
+      if (winningDay == null) delete next[key];
+      else next[key] = winningDay;
       return next;
     });
 
     try {
-      if (!dayOrNull) {
-        const { error } = await supabase
-          .from("raffle_winners")
-          .delete()
-          .eq("key", key);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase.from("raffle_winners").upsert(
+      const { error } = await supabase
+        .from("raffle_winners")
+        .upsert(
           {
-            key,
             year,
             month,
-            winner_day: dayOrNull,
+            winning_day: winningDay,
           },
-          { onConflict: "key" }
+          { onConflict: "year,month" }
         );
-        if (error) throw error;
-      }
+      if (error) throw error;
     } catch (err) {
-      console.error("Error saving raffle winner to Supabase", err);
+      console.error("Error saving raffle winner", err);
       alert("Error saving raffle winner; reloading data.");
-      loadRaffleWinnersFromSupabase();
+      setRaffleWinners(previous);
+      loadAllSharedData();
     }
   };
 
-  // ---------- PIN OVERRIDES (DB) ----------
-  const handlePinChange = async (playerId, pinValue) => {
-    const cleaned = (pinValue || "").replace(/\D/g, "").slice(0, 4);
-
-    setPinOverrides((prev) => ({ ...prev, [playerId]: cleaned }));
+  const handlePinChange = async (playerId, newValue) => {
+    const sanitized = newValue.replace(/\D/g, "").slice(0, 4);
+    setPlayerPins((prev) => ({ ...prev, [playerId]: sanitized }));
 
     try {
-      if (!cleaned) {
-        // if blank, delete row so we fall back to default pin in players.js
-        const { error } = await supabase
-          .from("player_pins")
-          .delete()
-          .eq("player_id", playerId);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase.from("player_pins").upsert(
-          {
-            player_id: playerId,
-            pin: cleaned,
-          },
+      const { error } = await supabase
+        .from("player_pins")
+        .upsert(
+          { player_id: playerId, pin: sanitized },
           { onConflict: "player_id" }
         );
-        if (error) throw error;
-      }
+      if (error) throw error;
     } catch (err) {
-      console.error("Error saving PIN to Supabase", err);
-      alert("Error saving PIN; reloading PINs.");
-      loadPinsFromSupabase();
+      console.error("Error saving player PIN", err);
+      alert("Error saving player PIN to the shared database.");
     }
   };
 
-  if (loadingInitial) {
+  if (isLoading) {
     return (
       <div className="page">
-        <header className="header">
+        <header className="simple-header">
           <h1>Thunder 12U Teal Calendar Fundraiser</h1>
         </header>
         <main style={{ padding: "2rem", textAlign: "center" }}>
-          Loading shared calendar…
+          Loading shared calendar...
         </main>
       </div>
     );
@@ -453,7 +370,10 @@ export default function App() {
                     </span>
                     <span> · </span>
                     <span>
-                      Zelle: <strong>630-698-8769</strong>
+                      Zelle:{" "}
+                      <strong>
+                        <a href="sms:16306988769">630-698-8769</a>
+                      </strong>
                     </span>
                   </div>
                 </div>
@@ -467,7 +387,6 @@ export default function App() {
                     src="/qr-zelle.jpeg"
                     alt="Zelle QR for 630-698-8769"
                     className="venmo-qr"
-                    style={{ marginLeft: "0.5rem" }}
                   />
                 </div>
               </div>
@@ -627,12 +546,12 @@ export default function App() {
         <AdminPanel
           entries={entries}
           raffleWinners={raffleWinners}
-          pinOverrides={pinOverrides}
-          onPinChange={handlePinChange}
+          playerPins={playerPins}
           onSetRaffleWinner={handleSetRaffleWinner}
           onQuickUpdateEntry={handleSaveEditedEntry}
           onDelete={handleDeleteEntry}
           onEditEntry={handleStartEditEntry}
+          onPinChange={handlePinChange}
         />
       )}
 
@@ -694,7 +613,7 @@ function MonthOverviewTile({
       .map((e) => e.day)
   );
 
-  const raffleDay = raffleWinners[raffleKey(year, monthIndex + 1)];
+  const raffleDay = raffleWinners[`${year}-${monthIndex + 1}`];
 
   return (
     <button type="button" className="month-overview-tile" onClick={onClick}>
@@ -751,7 +670,7 @@ function BigMonthCalendar({
   onDayClick,
 }) {
   const cells = buildCalendarCells(year, monthIndex);
-  const raffleDay = raffleWinners[raffleKey(year, monthIndex + 1)];
+  const raffleDay = raffleWinners[`${year}-${monthIndex + 1}`];
 
   return (
     <div className="big-month-card">
@@ -985,12 +904,12 @@ function EntryDetailsModal({ entry, onClose }) {
 function AdminPanel({
   entries,
   raffleWinners,
-  pinOverrides,
-  onPinChange,
+  playerPins,
   onSetRaffleWinner,
   onQuickUpdateEntry,
   onDelete,
   onEditEntry,
+  onPinChange,
 }) {
   const [filter, setFilter] = useState("all"); // all | paid | unpaid
   const [sortConfig, setSortConfig] = useState({
@@ -998,13 +917,8 @@ function AdminPanel({
     direction: "asc", // "asc" | "desc"
   });
 
-  const effectivePlayers = PLAYERS.map((p) => ({
-    ...p,
-    effectivePin: pinOverrides[p.id] ?? p.pin ?? "",
-  }));
-
   const getPaymentMeta = (entry) => {
-    const owed = entry.day; // $ owed for this date
+    const owed = entry.day;
     const methodRaw = entry.paymentMethod || "unpaid";
     const amount = Number(entry.paymentAmount || 0);
 
@@ -1029,7 +943,7 @@ function AdminPanel({
     return { owed, amount, method, isPaid, isFullyPaid, label };
   };
 
-  // base chronological sort
+  // base chronological sort for CSV + default
   const baseSorted = [...entries].sort((a, b) => {
     const da = new Date(a.year, a.month - 1, a.day);
     const db = new Date(b.year, b.month - 1, b.day);
@@ -1111,32 +1025,27 @@ function AdminPanel({
     return sortConfig.direction === "asc" ? " ▲" : " ▼";
   };
 
-  // Quick checkbox handler for Zelle/Venmo
   const handlePaymentCheckbox = (entry, method) => {
     const meta = getPaymentMeta(entry);
     const owed = meta.owed;
 
-    // If this method is already full-paid, uncheck => unpaid
     if (meta.method === method && meta.isFullyPaid) {
       onQuickUpdateEntry({
         ...entry,
         paymentMethod: "unpaid",
         paymentAmount: 0,
-        paid: false,
       });
       return;
     }
 
-    // Otherwise, set to full payment via that method
     onQuickUpdateEntry({
       ...entry,
       paymentMethod: method,
       paymentAmount: owed,
-      paid: true,
     });
   };
 
-  // Player fundraising summary (same as before)
+  // Player fundraising summary
   const summaryByPlayerId = new Map();
   for (const e of entries) {
     if (!e.playerId) continue;
@@ -1166,7 +1075,6 @@ function AdminPanel({
     month: idx + 1,
   }));
 
-  // CSV export uses chronological baseSorted
   const handleExportCsv = () => {
     const header = [
       "Date",
@@ -1269,11 +1177,11 @@ function AdminPanel({
         </button>
       </div>
 
-      {/* Editable PINs table */}
+      {/* Player PINs table (shared via Supabase) */}
       <h3 className="admin-summary-title">Player Access PINs</h3>
       <p className="admin-note">
         These 4-digit PINs let families unlock the supporter details for their
-        player on the Supporters page. You can adjust them here at any time.
+        player on the Supporters page. Changes are saved to the shared database.
       </p>
       <div className="admin-table-wrapper">
         <table className="admin-table">
@@ -1285,7 +1193,7 @@ function AdminPanel({
             </tr>
           </thead>
           <tbody>
-            {effectivePlayers.map((p) => (
+            {PLAYERS.map((p) => (
               <tr key={p.id}>
                 <td>{p.number}</td>
                 <td>
@@ -1295,7 +1203,7 @@ function AdminPanel({
                   <input
                     type="text"
                     maxLength={4}
-                    value={p.effectivePin}
+                    value={playerPins[p.id] || ""}
                     onChange={(e) => onPinChange(p.id, e.target.value)}
                     style={{ width: "60px" }}
                   />
