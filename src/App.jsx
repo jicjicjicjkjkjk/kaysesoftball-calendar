@@ -344,8 +344,8 @@ export default function App() {
 
         <p>
           At some point during each month — when Thunder 12U Teal is together
-          for practice — we will pull one winner for <strong>$100</strong> and
-          contact the supporter directly by text or email.
+          for practice or a game — we will pull one winner for <strong>$100</strong> and
+          contact the supporter directly by text.
         </p>
 
         <p>
