@@ -23,6 +23,11 @@ export default function SupportersPage() {
   const [entries, setEntries] = useState([]);
   const [selectedPlayerId, setSelectedPlayerId] = useState(null);
   const [selectedSupporter, setSelectedSupporter] = useState(null);
+  const PIN_STORAGE_KEY = "kaysesoftball_player_pins_v1";
+  const [entries, setEntries] = useState([]);
+  const [selectedPlayerId, setSelectedPlayerId] = useState(null);
+  const [selectedSupporter, setSelectedSupporter] = useState(null);
+  const [pinOverrides, setPinOverrides] = useState({});
 
   // Load entries from localStorage (same data used on main page)
   useEffect(() => {
@@ -36,12 +41,38 @@ export default function SupportersPage() {
     }
   }, []);
 
-  // Players sorted alphabetical by first name
-  const playersSorted = useMemo(
-    () => [...PLAYERS].sort((a, b) => a.firstName.localeCompare(b.firstName)),
-    []
+    useEffect(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        setEntries(JSON.parse(raw));
+      }
+
+      const rawPins = localStorage.getItem(PIN_STORAGE_KEY);
+      if (rawPins) {
+        setPinOverrides(JSON.parse(rawPins));
+      }
+    } catch (err) {
+      console.error("Failed to load entries or pins on supporters page", err);
+    }
+  }, []);
+
+    const effectivePlayers = useMemo(
+    () =>
+      PLAYERS.map((p) => ({
+        ...p,
+        effectivePin: pinOverrides[p.id] ?? p.pin ?? "",
+      })),
+    [pinOverrides]
   );
 
+  // Players sorted alphabetical by first name
+    const playersSorted = useMemo(
+    () => [...effectivePlayers].sort((a, b) => a.firstName.localeCompare(b.firstName)),
+    [effectivePlayers]
+  );
+
+  
   const handleSelectPlayer = (playerId) => {
     setSelectedPlayerId(playerId);
     setSelectedSupporter(null);
@@ -109,8 +140,10 @@ export default function SupportersPage() {
     }
 
     // Look up player PIN
-    const player = PLAYERS.find((p) => p.id === selectedPlayerId);
-    const playerPin = player?.pin;
+    const player = effectivePlayers.find((p) => p.id === selectedPlayerId);
+    const playerPin = player?.effectivePin;
+    const currentPlayer =
+  selectedPlayerId && effectivePlayers.find((p) => p.id === selectedPlayerId);
 
     let hasMatch = false;
 
