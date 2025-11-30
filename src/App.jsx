@@ -23,6 +23,7 @@ const CURRENT_YEAR = new Date().getFullYear();
 
 const STORAGE_KEY = "kaysesoftball_calendar_entries_v1";
 const RAFFLE_KEY = "kaysesoftball_calendar_raffle_v1";
+const PIN_STORAGE_KEY = "kaysesoftball_player_pins_v1";
 
 function buildCalendarCells(year, monthIndex) {
   const first = new Date(year, monthIndex, 1);
@@ -66,6 +67,32 @@ export default function App() {
     phone: "",
   });
 
+  const [pinOverrides, setPinOverrides] = useState({});
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(PIN_STORAGE_KEY);
+      if (raw) {
+        setPinOverrides(JSON.parse(raw));
+      }
+    } catch (e) {
+      console.error("Failed to load pin overrides", e);
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(PIN_STORAGE_KEY, JSON.stringify(pinOverrides));
+    } catch (e) {
+      console.error("Failed to save pin overrides", e);
+    }
+  }, [pinOverrides]);
+
+  const effectivePlayers = PLAYERS.map((p) => ({
+    ...p,
+    effectivePin: pinOverrides[p.id] ?? p.pin ?? "",
+  }));
+  
   // Load from localStorage on first render
   useEffect(() => {
     try {
