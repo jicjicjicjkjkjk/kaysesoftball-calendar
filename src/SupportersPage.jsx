@@ -1,188 +1,169 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { PLAYERS } from "./players";
 import { supabase } from "./supabaseClient";
+import { PLAYERS } from "./players";
 
-// ---- helpers ----
+const MONTH_NAMES = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
 
-// compute payment label for an entry (only Paid / Partially paid / Unpaid)
+const CURRENT_YEAR = new Date().getFullYear();
+
 function getPaymentMeta(entry) {
-  const owed = entry.day; // price is the day number
+  const owed = entry.day;
   const methodRaw = entry.paymentMethod || "unpaid";
   const amount = Number(entry.paymentAmount || 0);
 
   const method =
     methodRaw === "zelle" || methodRaw === "venmo" ? methodRaw : "unpaid";
 
-  const isPaid = method !== "unpaid" && amount >= owed;
-  const isPartial = method !== "unpaid" && amount > 0 && amount < owed;
+  const isPaid = method !== "unpaid" && amount > 0;
+  const isFullyPaid = isPaid && amount >= owed;
 
   let label;
-  if (isPaid) label = "Paid";
-  else if (isPartial) label = "Partially paid";
-  else label = "Unpaid";
+  if (!isPaid) {
+    label = "Unpaid";
+  } else {
+    const base = method === "zelle" ? "Paid via Zelle" : "Paid via Venmo";
+    if (isFullyPaid) {
+      label = `${base} (full $${amount})`;
+    } else {
+      label = `${base} (partial $${amount} of $${owed})`;
+    }
+  }
 
-  return { owed, amount, method, isPaid, isPartial, label };
+  return { owed, amount, method, isPaid, isFullyPaid, label };
 }
 
-// Strip to last 4 digits of a phone number
-function last4Digits(phone) {
-  if (!phone) return "";
-  const digits = String(phone).replace(/\D/g, "");
-  return digits.slice(-4);
+function mapEntryFromRow(row) {
+  return {
+    id: row.id,
+    year: row.year,
+    month: row.month,
+    day: row.day,
+    supporterName: row.supporter_name,
+    playerId: row.player_id,
+    note: row.note || "",
+    phone: row.phone || "",
+    paymentMethod: row.payment_method || "unpaid",
+    paymentAmount: Number(row.payment_amount || 0),
+    createdAt: row.created_at,
+  };
 }
 
-/**
- * Supporters page that:
- *  - loads entries + player PINs directly from Supabase
- *  - lets you pick a player
- *  - shows supporters list w/ days sold + sum of dates
- *  - click supporter → enter PIN or last 4 of phone → see that supporter’s dates
- *  - status shows Paid / Partially paid / Unpaid (no “via Zelle/Venmo” text)
- */
 export default function SupportersPage() {
   const [entries, setEntries] = useState([]);
   const [playerPins, setPlayerPins] = useState({});
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [selectedPlayerId, setSelectedPlayerId] = useState(null);
 
-  const effectivePlayers = useMemo(
-    () =>
-      PLAYERS.map((p) => ({
-        ...p,
-        effectivePin: playerPins[p.id] ?? p.pin ?? "",
-      })),
-    [playerPins]
-  );
-
-  const [selectedPlayerId, setSelectedPlayerId] = useState(
-    effectivePlayers[0]?.id || ""
-  );
-
+  const [expandedSupporter, setExpandedSupporter] = useState(null);
   const [sortConfig, setSortConfig] = useState({
-    key: "supporter", // supporter | days | sum
+    key: "supporter",
     direction: "asc",
   });
 
-  // Which supporter is currently unlocked for details (per player)
-  const [unlockedSupporterKey, setUnlockedSupporterKey] = useState(null);
-
-  // ---- load from Supabase on mount ----
   useEffect(() => {
-    async function loadData() {
+    (async () => {
+      setLoading(true);
       try {
-        setLoading(true);
-        setError("");
+        const [entriesRes, pinsRes] = await Promise.all([
+          supabase
+            .from("calendar_entries")
+            .select("*")
+            .eq("year", CURRENT_YEAR)
+            .order("month", { ascending: true })
+            .order("day", { ascending: true }),
+          supabase.from("player_pins").select("*"),
+        ]);
 
-        // calendar entries
-        const { data: entriesData, error: entriesError } = await supabase
-          .from("calendar_entries")
-          .select("*")
-          .order("year", { ascending: true })
-          .order("month", { ascending: true })
-          .order("day", { ascending: true });
+        if (entriesRes.error) throw entriesRes.error;
+        if (pinsRes.error) throw pinsRes.error;
 
-        if (entriesError) throw entriesError;
-        setEntries(entriesData || []);
+        setEntries((entriesRes.data || []).map(mapEntryFromRow));
 
-        // player pins
-        const { data: pinsData, error: pinsError } = await supabase
-          .from("player_pins")
-          .select("player_id, pin");
-
-        if (pinsError) {
-          // not fatal; we’ll just use default pins from players.js
-          console.error("Failed to load player pins:", pinsError);
-          setPlayerPins({});
-        } else {
-          const pinMap = {};
-          (pinsData || []).forEach((row) => {
-            pinMap[row.player_id] = row.pin;
-          });
-          setPlayerPins(pinMap);
-        }
+        const pinMap = {};
+        (pinsRes.data || []).forEach((row) => {
+          pinMap[row.player_id] = row.pin || "";
+        });
+        setPlayerPins(pinMap);
       } catch (err) {
-        console.error("Error loading supporters data:", err);
-        setError("There was a problem loading supporters from the database.");
+        console.error("Error loading supporter data from Supabase", err);
+        alert(
+          "There was a problem loading the supporter view from the shared database."
+        );
       } finally {
         setLoading(false);
       }
-    }
-
-    loadData();
+    })();
   }, []);
 
-  // ensure selectedPlayerId stays valid once players are loaded
-  useEffect(() => {
-    if (!selectedPlayerId && effectivePlayers.length > 0) {
-      setSelectedPlayerId(effectivePlayers[0].id);
+  const selectedPlayer = PLAYERS.find((p) => p.id === selectedPlayerId) || null;
+
+  const playerEntries = selectedPlayer
+    ? entries.filter((e) => e.playerId === selectedPlayer.id)
+    : [];
+
+  const totalDays = playerEntries.length;
+  const sumOfDates = playerEntries.reduce((sum, e) => sum + e.day, 0);
+
+  // Build supporter summary for the selected player
+  const supporterMap = new Map();
+  for (const e of playerEntries) {
+    const key = e.supporterName || "Unknown supporter";
+    if (!supporterMap.has(key)) {
+      supporterMap.set(key, {
+        supporterName: key,
+        dates: [],
+        totalDays: 0,
+        sumDates: 0,
+        phones: [],
+        hasPaid: false,
+        hasUnpaid: false,
+      });
     }
-  }, [effectivePlayers, selectedPlayerId]);
+    const rec = supporterMap.get(key);
+    rec.dates.push(e);
+    rec.totalDays += 1;
+    rec.sumDates += e.day;
+    if (e.phone) rec.phones.push(e.phone);
+    const meta = getPaymentMeta(e);
+    if (meta.isPaid) rec.hasPaid = true;
+    if (!meta.isPaid) rec.hasUnpaid = true;
+  }
 
-  // ---- derived data for currently selected player ----
+  let supporterRows = Array.from(supporterMap.values());
 
-  const playerEntries = useMemo(() => {
-    if (!selectedPlayerId) return [];
-    return entries.filter((e) => e.playerId === selectedPlayerId);
-  }, [entries, selectedPlayerId]);
-
-  const playerSummary = useMemo(() => {
-    let days = 0;
-    let sum = 0;
-    for (const e of playerEntries) {
-      days += 1;
-      sum += e.day;
-    }
-    return { days, sum };
-  }, [playerEntries]);
-
-  // supporter rows: supporterName -> days, sum, phones, entries
-  const supporterRows = useMemo(() => {
-    const map = new Map();
-
-    for (const e of playerEntries) {
-      const key = e.supporterName || "Unknown supporter";
-      if (!map.has(key)) {
-        map.set(key, {
-          supporterName: key,
-          days: 0,
-          sum: 0,
-          phones: new Set(),
-          entries: [],
-        });
+  // Sort supporters
+  supporterRows.sort((a, b) => {
+    const dir = sortConfig.direction === "asc" ? 1 : -1;
+    switch (sortConfig.key) {
+      case "supporter": {
+        const sa = a.supporterName.toLowerCase();
+        const sb = b.supporterName.toLowerCase();
+        if (sa < sb) return -1 * dir;
+        if (sa > sb) return 1 * dir;
+        return 0;
       }
-      const rec = map.get(key);
-      rec.days += 1;
-      rec.sum += e.day;
-      if (e.phone) rec.phones.add(e.phone);
-      rec.entries.push(e);
+      case "days":
+        return (a.totalDays - b.totalDays) * dir;
+      case "sum":
+        return (a.sumDates - b.sumDates) * dir;
+      default:
+        return 0;
     }
-
-    const rows = Array.from(map.values());
-
-    // sort
-    return rows.sort((a, b) => {
-      const dir = sortConfig.direction === "asc" ? 1 : -1;
-      switch (sortConfig.key) {
-        case "days":
-          if (a.days < b.days) return -1 * dir;
-          if (a.days > b.days) return 1 * dir;
-          return 0;
-        case "sum":
-          if (a.sum < b.sum) return -1 * dir;
-          if (a.sum > b.sum) return 1 * dir;
-          return 0;
-        case "supporter":
-        default: {
-          const sa = a.supporterName.toLowerCase();
-          const sb = b.supporterName.toLowerCase();
-          if (sa < sb) return -1 * dir;
-          if (sa > sb) return 1 * dir;
-          return 0;
-        }
-      }
-    });
-  }, [playerEntries, sortConfig]);
+  });
 
   const handleSort = (key) => {
     setSortConfig((prev) => {
@@ -201,265 +182,202 @@ export default function SupportersPage() {
     return sortConfig.direction === "asc" ? " ▲" : " ▼";
   };
 
-  const handleSelectPlayer = (playerId) => {
-    setSelectedPlayerId(playerId);
-    setUnlockedSupporterKey(null);
-  };
+  const handleSupporterClick = (row) => {
+    if (!selectedPlayer) return;
 
-  const handleClickSupporter = (row) => {
-    if (!selectedPlayerId) return;
-
-    const player = effectivePlayers.find((p) => p.id === selectedPlayerId);
-    const playerPin = (player?.effectivePin || "").trim();
-    const supporterKey = `${selectedPlayerId}__${row.supporterName}`;
-
-    const pin = window.prompt(
-      "Enter the 4-digit PIN for this player, or the last 4 digits of your phone number:"
+    const entered = window.prompt(
+      `Enter the 4-digit player PIN or the last 4 digits of the phone number for ${row.supporterName} to view their dates:`
     );
-    if (pin == null) return; // cancelled
+    if (entered == null) return;
 
-    const entered = pin.trim();
+    const code = entered.trim();
+    const playerPin = (playerPins[selectedPlayer.id] || "").trim();
 
-    // build set of valid pins
-    const validPins = new Set();
+    const phoneMatch = row.dates.some((d) =>
+      (d.phone || "").endsWith(code)
+    );
 
-    if (playerPin && playerPin.length >= 4) {
-      validPins.add(playerPin.slice(-4));
-    }
-
-    for (const phone of row.phones) {
-      const last4 = last4Digits(phone);
-      if (last4) validPins.add(last4);
-    }
-
-    if (validPins.has(entered)) {
-      // toggle open/closed
-      setUnlockedSupporterKey((prev) =>
-        prev === supporterKey ? null : supporterKey
+    if (code && (code === playerPin || phoneMatch)) {
+      setExpandedSupporter((prev) =>
+        prev === row.supporterName ? null : row.supporterName
       );
     } else {
-      alert("Incorrect PIN. Please try again or contact Coach Justin.");
+      alert(
+        "PIN did not match this player or any supporter phone on file. Please try again."
+      );
     }
   };
-
-  const selectedPlayer = effectivePlayers.find(
-    (p) => p.id === selectedPlayerId
-  );
-
-  // ---- render ----
 
   return (
     <div className="page supporters-page">
       <header className="header">
-        <div className="hero supporters-hero">
-          <div className="hero-left">
-            <div className="hero-logo-wrap">
-              <img
-                src="/thunder-logo.jpg"
-                alt="Arlington Heights Thunder Fastpitch"
-                className="hero-logo"
-              />
-            </div>
-            <div className="hero-text">
-              <h1>Thunder 12U Teal – Supporters</h1>
-              <p>
-                This page shows who has supported each player in the calendar
-                fundraiser. Families can use a PIN (or last 4 of phone) to see
-                detailed dates and payment status for their own supporters.
-              </p>
-            </div>
-          </div>
-          <div className="hero-photo-wrap">
-            <img
-              src="/team-12u-teal.jpg"
-              alt="Thunder 12U Teal team"
-              className="hero-team-photo"
-            />
-          </div>
+        <div className="header-top-row">
+          <h1>Thunder 12U Teal – Supporters</h1>
+          <Link to="/" className="nav-link">
+            ← Back to Calendar
+          </Link>
         </div>
-
-        <div className="header-bottom-row">
-          <div className="header-links">
-            <Link to="/" className="nav-link">
-              ← Back to Calendar
-            </Link>
-          </div>
-        </div>
+        <p className="supporter-intro">
+          Choose a player to see who has supported them, how many calendar days
+          they’ve sold, and the sum of those date numbers. Supporters can unlock
+          their detailed dates using the player PIN or the last 4 digits of
+          their phone number.
+        </p>
       </header>
 
       {loading ? (
-        <main className="supporters-main">
-          <p>Loading supporters from shared database…</p>
-        </main>
-      ) : error ? (
-        <main className="supporters-main">
-          <p style={{ color: "salmon" }}>{error}</p>
+        <main style={{ padding: "2rem", textAlign: "center" }}>
+          Loading supporter data…
         </main>
       ) : (
-        <section className="supporters-layout">
-          {/* PLAYER LIST */}
-          <aside className="supporters-player-list">
-            <h2>Players</h2>
-            <ul>
-              {effectivePlayers.map((p) => (
-                <li key={p.id}>
-                  <button
-                    type="button"
-                    className={
-                      p.id === selectedPlayerId
-                        ? "player-pill active"
-                        : "player-pill"
-                    }
-                    onClick={() => handleSelectPlayer(p.id)}
-                  >
-                    #{p.number} {p.firstName} {p.lastName}
-                  </button>
-                </li>
+        <main className="supporters-main">
+          {/* Player selection */}
+          <section className="supporters-player-list">
+            <h2>Select a Player</h2>
+            <div className="player-pill-row">
+              {PLAYERS.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  className={
+                    selectedPlayerId === p.id
+                      ? "player-pill selected"
+                      : "player-pill"
+                  }
+                  onClick={() => {
+                    setSelectedPlayerId(p.id);
+                    setExpandedSupporter(null);
+                  }}
+                >
+                  #{p.number} {p.firstName}
+                </button>
               ))}
-            </ul>
-          </aside>
+            </div>
+          </section>
 
-          {/* MAIN CONTENT */}
-          <main className="supporters-main">
-            {selectedPlayer ? (
-              <>
+          {/* Summary + supporters table */}
+          {selectedPlayer ? (
+            <>
+              <section className="supporters-summary">
                 <h2>
-                  Supporters for #{selectedPlayer.number}{" "}
-                  {selectedPlayer.firstName} {selectedPlayer.lastName}
+                  Fundraising Summary – {selectedPlayer.firstName}{" "}
+                  {selectedPlayer.lastName}
                 </h2>
-
-                <p className="supporters-summary">
-                  <strong>Fundraising summary:</strong>{" "}
-                  {playerSummary.days === 0 ? (
-                    <>No dates claimed yet.</>
-                  ) : (
-                    <>
-                      {playerSummary.days} day
-                      {playerSummary.days !== 1 ? "s" : ""} sold, sum of date
-                      numbers = <strong>{playerSummary.sum}</strong>.
-                    </>
-                  )}
+                <p>
+                  <strong>Total days sold:</strong> {totalDays}
                 </p>
+                <p>
+                  <strong>Sum of date numbers:</strong> {sumOfDates}
+                </p>
+                <p className="supporter-note">
+                  Example: December 12 + August 27 = 12 + 27 = 39.
+                </p>
+              </section>
 
+              <section className="supporters-table-section">
+                <h3>Supporters for this player</h3>
                 {supporterRows.length === 0 ? (
-                  <p>No supporters yet for this player.</p>
+                  <p>No dates have been sold yet for this player.</p>
                 ) : (
-                  <>
-                    <div className="admin-table-wrapper">
-                      <table className="admin-table supporters-table">
-                        <thead>
-                          <tr>
-                            <th
-                              onClick={() => handleSort("supporter")}
-                              className="sortable-col"
-                            >
-                              Supporter{sortIndicator("supporter")}
-                            </th>
-                            <th
-                              onClick={() => handleSort("days")}
-                              className="sortable-col"
-                            >
-                              Days sponsored{sortIndicator("days")}
-                            </th>
-                            <th
-                              onClick={() => handleSort("sum")}
-                              className="sortable-col"
-                            >
-                              Sum of date numbers{sortIndicator("sum")}
-                            </th>
-                            <th>Details</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {supporterRows.map((row) => {
-                            const supporterKey = `${selectedPlayerId}__${row.supporterName}`;
-                            const isUnlocked =
-                              unlockedSupporterKey === supporterKey;
-                            return (
-                              <React.Fragment key={supporterKey}>
+                  <div className="admin-table-wrapper">
+                    <table className="admin-table">
+                      <thead>
+                        <tr>
+                          <th
+                            className="sortable-col"
+                            onClick={() => handleSort("supporter")}
+                          >
+                            Supporter{sortIndicator("supporter")}
+                          </th>
+                          <th
+                            className="sortable-col"
+                            onClick={() => handleSort("days")}
+                          >
+                            Days sponsored{sortIndicator("days")}
+                          </th>
+                          <th
+                            className="sortable-col"
+                            onClick={() => handleSort("sum")}
+                          >
+                            Sum of date numbers{sortIndicator("sum")}
+                          </th>
+                          <th>Payment status (overall)</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {supporterRows.map((row) => {
+                          let paymentSummary = "Unpaid";
+                          if (row.hasPaid && row.hasUnpaid) {
+                            paymentSummary = "Some dates paid, some unpaid";
+                          } else if (row.hasPaid) {
+                            paymentSummary = "All paid";
+                          }
+
+                          const isExpanded =
+                            expandedSupporter === row.supporterName;
+
+                          return (
+                            <React.Fragment key={row.supporterName}>
+                              <tr
+                                className="clickable-row"
+                                onClick={() => handleSupporterClick(row)}
+                              >
+                                <td>{row.supporterName}</td>
+                                <td>{row.totalDays}</td>
+                                <td>{row.sumDates}</td>
+                                <td>{paymentSummary}</td>
+                              </tr>
+                              {isExpanded && (
                                 <tr>
-                                  <td>{row.supporterName}</td>
-                                  <td>{row.days}</td>
-                                  <td>{row.sum}</td>
-                                  <td>
-                                    <button
-                                      type="button"
-                                      className="link-button"
-                                      onClick={() => handleClickSupporter(row)}
-                                    >
-                                      {isUnlocked
-                                        ? "Hide details"
-                                        : "View details"}
-                                    </button>
+                                  <td colSpan={4}>
+                                    <div className="supporter-detail">
+                                      <strong>
+                                        Detailed dates for {row.supporterName}
+                                      </strong>
+                                      <table className="nested-table">
+                                        <thead>
+                                          <tr>
+                                            <th>Date</th>
+                                            <th>Phone (private)</th>
+                                            <th>Payment status</th>
+                                          </tr>
+                                        </thead>
+                                        <tbody>
+                                          {row.dates.map((d) => {
+                                            const meta = getPaymentMeta(d);
+                                            const dateStr = `${
+                                              MONTH_NAMES[d.month - 1]
+                                            } ${d.day}, ${d.year}`;
+                                            return (
+                                              <tr key={d.id}>
+                                                <td>{dateStr}</td>
+                                                <td>{d.phone}</td>
+                                                <td>{meta.label}</td>
+                                              </tr>
+                                            );
+                                          })}
+                                        </tbody>
+                                      </table>
+                                    </div>
                                   </td>
                                 </tr>
-                                {isUnlocked && (
-                                  <tr className="supporter-details-row">
-                                    <td colSpan={4}>
-                                      <SupporterDetails entries={row.entries} />
-                                    </td>
-                                  </tr>
-                                )}
-                              </React.Fragment>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-
-                    <p className="supporters-note">
-                      To see your detailed dates, click your name and enter the
-                      player PIN or the last 4 digits of the phone number used
-                      when the dates were purchased.
-                    </p>
-                  </>
+                              )}
+                            </React.Fragment>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
                 )}
-              </>
-            ) : (
-              <p>Select a player on the left to see their supporters.</p>
-            )}
-          </main>
-        </section>
+              </section>
+            </>
+          ) : (
+            <section style={{ padding: "1.5rem" }}>
+              <p>Select a player above to see their supporters.</p>
+            </section>
+          )}
+        </main>
       )}
-    </div>
-  );
-}
-
-// Renders the unlocked supporter’s detailed dates
-function SupporterDetails({ entries }) {
-  if (!entries || entries.length === 0) return null;
-
-  const sorted = [...entries].sort((a, b) => {
-    const da = new Date(a.year, a.month - 1, a.day);
-    const db = new Date(b.year, b.month - 1, b.day);
-    return da - db;
-  });
-
-  return (
-    <div className="supporter-details">
-      <h4>Claimed dates &amp; payment status</h4>
-      <ul>
-        {sorted.map((e) => {
-          const meta = getPaymentMeta(e);
-          const dateStr = `${e.month}/${e.day}/${e.year}`;
-          return (
-            <li key={e.id}>
-              <span className="supporter-date">{dateStr}</span>{" "}
-              <span
-                className={`supporter-status status-${meta.label
-                  .toLowerCase()
-                  .replace(" ", "-")}`}
-              >
-                {meta.label}
-              </span>
-            </li>
-          );
-        })}
-      </ul>
-      <p className="supporters-note small">
-        Payment info here is for your dates only. If anything looks wrong,
-        please contact Coach Justin.
-      </p>
     </div>
   );
 }
