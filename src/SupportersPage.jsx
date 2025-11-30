@@ -90,32 +90,48 @@ export default function SupportersPage() {
       return;
     }
 
-    const phoneInput = window.prompt(
-      "To view details for this supporter, please enter the cell phone number used when purchasing dates (you can enter the full number or just the last 4 digits)."
+    const phoneOrPin = window.prompt(
+      "To view details for this supporter, enter the cell phone number used when purchasing dates (full or last 4 digits), OR the player's 4-digit PIN."
     );
 
-    if (phoneInput === null) {
+    if (phoneOrPin === null) {
       // cancelled
       return;
     }
 
-    const cleanedInput = phoneInput.replace(/\D/g, "");
+    const cleanedInput = phoneOrPin.replace(/\D/g, "");
     if (!cleanedInput) {
-      alert("Phone number cannot be blank.");
+      alert("Phone number or PIN cannot be blank.");
       return;
     }
 
-    const hasMatch = relevant.some((e) => {
-      const stored = (e.phone || "").replace(/\D/g, "");
-      if (!stored) return false;
-      return (
-        stored === cleanedInput || stored.endsWith(cleanedInput) // allow last 4
-      );
-    });
+    // Look up player PIN from PLAYERS
+    const player = PLAYERS.find((p) => p.id === selectedPlayerId);
+    const playerPin = player?.pin;
+
+    let hasMatch = false;
+
+    // Option 1: match supporter phone (full or trailing digits)
+    if (cleanedInput.length >= 4) {
+      hasMatch = relevant.some((e) => {
+        const stored = (e.phone || "").replace(/\D/g, "");
+        if (!stored) return false;
+        return (
+          stored === cleanedInput || stored.endsWith(cleanedInput) // allow last 4
+        );
+      });
+    }
+
+    // Option 2: if exactly 4 digits and not matched yet, allow player PIN
+    if (!hasMatch && cleanedInput.length === 4 && playerPin) {
+      if (cleanedInput === playerPin) {
+        hasMatch = true;
+      }
+    }
 
     if (!hasMatch) {
       alert(
-        "Sorry, that phone number does not match what we have on file for this supporter."
+        "Sorry, that code does not match what we have on file. Please use the phone number used when supporting, or the player's 4-digit PIN."
       );
       return;
     }
@@ -139,27 +155,27 @@ export default function SupportersPage() {
     });
 
     const dates = sorted.map((e) => ({
-  id: e.id,
-  year: e.year,
-  monthName: MONTH_NAMES[e.month - 1],
-  day: e.day,
-}));
+      id: e.id,
+      year: e.year,
+      monthName: MONTH_NAMES[e.month - 1],
+      day: e.day,
+    }));
 
-const total = sorted.reduce((sum, e) => sum + e.day, 0);
-const totalPaid = sorted.reduce(
-  (sum, e) => sum + Number(e.paymentAmount || 0),
-  0
-);
+    const total = sorted.reduce((sum, e) => sum + e.day, 0);
+    const totalPaid = sorted.reduce(
+      (sum, e) => sum + Number(e.paymentAmount || 0),
+      0
+    );
 
-return {
-  playerName: player
-    ? `${player.firstName} ${player.lastName}`
-    : "Unknown player",
-  supporterName: selectedSupporter,
-  dates,
-  total,
-  totalPaid,
-};
+    return {
+      playerName: player
+        ? `${player.firstName} ${player.lastName}`
+        : "Unknown player",
+      supporterName: selectedSupporter,
+      dates,
+      total,
+      totalPaid,
+    };
   }, [selectedPlayerId, selectedSupporter, entriesForPlayer]);
 
   const currentPlayer =
@@ -181,8 +197,8 @@ return {
             <p>
               Explore which supporters have purchased dates in honor of each
               Thunder 12U Teal player. To view detailed dates and totals for a
-              supporter, you&apos;ll need the cell phone number used when the
-              dates were purchased.
+              supporter, you&apos;ll need either the cell phone number used when
+              the dates were purchased or that player&apos;s 4-digit PIN.
             </p>
           </div>
         </div>
@@ -253,13 +269,13 @@ return {
                       }
                       onClick={() => handleSelectSupporter(row.supporterName)}
                     >
-                    <div className="supporter-name">
-  {row.supporterName}
-</div>
-<div className="supporter-sub">
-  {row.count} date
-  {row.count !== 1 ? "s" : ""}
-</div>
+                      <div className="supporter-name">
+                        {row.supporterName}
+                      </div>
+                      <div className="supporter-sub">
+                        {row.count} date
+                        {row.count !== 1 ? "s" : ""}
+                      </div>
                     </button>
                   </li>
                 ))}
@@ -274,52 +290,56 @@ return {
             {!selectedSupporter && (
               <p className="supporters-hint">
                 Click a supporter in the middle column and enter their phone
-                number to view their dates and totals.
+                number or the player&apos;s 4-digit PIN to view their dates and
+                totals.
               </p>
             )}
 
-{supporterDetails && (
-  <div className="supporter-details-card">
-    <p>
-      <strong>Supporter:</strong> {supporterDetails.supporterName}
-    </p>
-    <p>
-      <strong>Player Supported:</strong>{" "}
-      {supporterDetails.playerName}
-    </p>
+            {supporterDetails && (
+              <div className="supporter-details-card">
+                <p>
+                  <strong>Supporter:</strong> {supporterDetails.supporterName}
+                </p>
+                <p>
+                  <strong>Player Supported:</strong>{" "}
+                  {supporterDetails.playerName}
+                </p>
 
-    <h3>Dates Purchased</h3>
-    <ul className="supporter-dates-list">
-      {supporterDetails.dates.map((d) => (
-        <li key={d.id}>
-          {d.monthName} {d.day}, {d.year}
-        </li>
-      ))}
-    </ul>
+                <h3>Dates Purchased</h3>
+                <ul className="supporter-dates-list">
+                  {supporterDetails.dates.map((d) => (
+                    <li key={d.id}>
+                      {d.monthName} {d.day}, {d.year}
+                    </li>
+                  ))}
+                </ul>
 
-    <p className="supporter-total">
-      <strong>Total owed (sum of dates):</strong>{" "}
-      ${supporterDetails.total}
-    </p>
+                <p className="supporter-total">
+                  <strong>Total owed (sum of dates):</strong>{" "}
+                  ${supporterDetails.total}
+                </p>
 
-    {supporterDetails.totalPaid >= supporterDetails.total ? (
-      <p className="supporter-total">
-        <strong>Thank you!</strong> Payment has been received in full.
-      </p>
-    ) : supporterDetails.totalPaid > 0 ? (
-      <p className="supporter-total">
-        You have paid ${supporterDetails.totalPaid} so far. Remaining
-        balance: ${supporterDetails.total - supporterDetails.totalPaid}.
-        Please remit via Zelle (630-698-8769) or Venmo (@Justin-Kayse).
-      </p>
-    ) : (
-      <p className="supporter-total">
-        Please remit ${supporterDetails.total} via Zelle
-        (630-698-8769) or Venmo (@Justin-Kayse).
-      </p>
-    )}
-  </div>
-)}
+                {supporterDetails.totalPaid >= supporterDetails.total ? (
+                  <p className="supporter-total">
+                    <strong>Thank you!</strong> Payment has been received in
+                    full.
+                  </p>
+                ) : supporterDetails.totalPaid > 0 ? (
+                  <p className="supporter-total">
+                    You have paid ${supporterDetails.totalPaid} so far.
+                    Remaining balance: $
+                    {supporterDetails.total - supporterDetails.totalPaid}.
+                    Please remit via Zelle (630-698-8769) or Venmo
+                    (@Justin-Kayse).
+                  </p>
+                ) : (
+                  <p className="supporter-total">
+                    Please remit ${supporterDetails.total} via Zelle
+                    (630-698-8769) or Venmo (@Justin-Kayse).
+                  </p>
+                )}
+              </div>
+            )}
           </section>
         </section>
       </main>
