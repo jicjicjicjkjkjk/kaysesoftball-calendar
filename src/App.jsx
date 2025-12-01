@@ -2,6 +2,10 @@ import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "./supabaseClient";
 import { PLAYERS } from "./players";
+// Always use players sorted by first name for dropdowns etc.
+const SORTED_PLAYERS = [...PLAYERS].sort((a, b) =>
+  a.firstName.localeCompare(b.firstName)
+);
 
 /* ---------- CONSTANTS / HELPERS ---------- */
 
