@@ -109,9 +109,12 @@ export default function App() {
       const mappedEntries = (entriesRes.data || []).map(mapEntryFromRow);
       setEntries(mappedEntries);
 
+      // 🔧 FIX: read `row.day` (the actual column) instead of `row.winning_day`
       const winnersMap = {};
       (winnersRes.data || []).forEach((row) => {
-        winnersMap[`${row.year}-${row.month}`] = row.winning_day;
+        if (row.day != null) {
+          winnersMap[`${row.year}-${row.month}`] = row.day;
+        }
       });
       setRaffleWinners(winnersMap);
 
@@ -257,70 +260,71 @@ export default function App() {
     setShowAdmin((prev) => !prev);
   };
 
- // make sure this lives inside your App component, alongside the other handlers
-const handleSetRaffleWinner = async (year, month, dayOrNull) => {
-  const winningDay = dayOrNull || null;
-  const key = `${year}-${month}`;
+  // Raffle winner saver, with Supabase and optimistic UI
+  const handleSetRaffleWinner = async (year, month, dayOrNull) => {
+    const winningDay = dayOrNull || null;
+    const key = `${year}-${month}`;
 
-  // Save previous state in case we need to roll back
-  const previous = raffleWinners;
+    // Save previous state in case we need to roll back
+    const previous = { ...raffleWinners };
 
-  // Optimistic UI update
-  setRaffleWinners((prev) => {
-    const next = { ...prev };
-    if (winningDay == null) {
-      delete next[key];
-    } else {
-      next[key] = winningDay;
-    }
-    return next;
-  });
+    // Optimistic UI update
+    setRaffleWinners((prev) => {
+      const next = { ...prev };
+      if (winningDay == null) {
+        delete next[key];
+      } else {
+        next[key] = winningDay;
+      }
+      return next;
+    });
 
-  try {
-    // 1) Does a row already exist for this year/month?
-    const { data: existing, error: selectError } = await supabase
-      .from("raffle_winners")
-      .select("*")
-      .eq("year", year)
-      .eq("month", month)
-      .maybeSingle();
-
-    if (selectError) {
-      throw selectError;
-    }
-
-    let saveError = null;
-
-    if (existing) {
-      // Update existing row's "day" column
-      const { error } = await supabase
+    try {
+      // 1) Does a row already exist for this year/month?
+      const { data: existing, error: selectError } = await supabase
         .from("raffle_winners")
-        .update({ day: winningDay })
-        .eq("id", existing.id);
-      saveError = error;
-    } else {
-      // Insert new row
-      const { error } = await supabase
-        .from("raffle_winners")
-        .insert([{ year, month, day: winningDay }]);
-      saveError = error;
-    }
+        .select("*")
+        .eq("year", year)
+        .eq("month", month)
+        .maybeSingle();
 
-    if (saveError) {
-      throw saveError;
+      if (selectError) {
+        throw selectError;
+      }
+
+      let saveError = null;
+
+      if (existing) {
+        // Update existing row's "day" column
+        const { error } = await supabase
+          .from("raffle_winners")
+          .update({ day: winningDay })
+          .eq("id", existing.id);
+        saveError = error;
+      } else {
+        // Insert new row
+        const { error } = await supabase
+          .from("raffle_winners")
+          .insert([{ year, month, day: winningDay }]);
+        saveError = error;
+      }
+
+      if (saveError) {
+        throw saveError;
+      }
+    } catch (err) {
+      console.error("Error saving raffle winner", err);
+      alert(
+        `Error saving raffle winner: ${
+          err?.message || "Unknown error"
+        }. Reloading data.`
+      );
+      // Roll back and reload from the DB so everything stays in sync
+      setRaffleWinners(previous);
+      loadAllSharedData();
     }
-  } catch (err) {
-    console.error("Error saving raffle winner", err);
-    alert(
-      `Error saving raffle winner: ${
-        err?.message || "Unknown error"
-      }. Reloading data.`
-    );
-    // Roll back and reload from the DB so everything stays in sync
-    setRaffleWinners(previous);
-    loadAllSharedData();
-  }
-};
+  };
+
   const handlePinChange = async (playerId, newValue) => {
     const sanitized = newValue.replace(/\D/g, "").slice(0, 4);
     setPlayerPins((prev) => ({ ...prev, [playerId]: sanitized }));
@@ -366,7 +370,8 @@ const handleSetRaffleWinner = async (year, month, dayOrNull) => {
             </div>
             <div className="hero-text">
               <p className="social-line">
-                Follow along on our social media!{" "}
+                Follow along on our social media to see how much fun these girls
+                are having and how hard they&apos;re working!{" "}
                 <a
                   href="https://www.instagram.com/thunder.fastpitch.12uteal?igsh=MWh0a3F1bmx3ZGw5eA=="
                   target="_blank"
