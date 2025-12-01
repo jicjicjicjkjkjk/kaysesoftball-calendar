@@ -3,6 +3,11 @@ import { Link } from "react-router-dom";
 import { supabase } from "./supabaseClient";
 import { PLAYERS } from "./players";
 
+// Always use players sorted by first name on this page
+const SORTED_PLAYERS = [...PLAYERS].sort((a, b) =>
+  a.firstName.localeCompare(b.firstName)
+);
+
 const MONTH_NAMES = [
   "January",
   "February",
