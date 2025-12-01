@@ -20,6 +20,8 @@ const MONTH_NAMES = [
 
 const CURRENT_YEAR = new Date().getFullYear();
 
+/* ---------- HELPERS ---------- */
+
 function getPaymentMeta(entry) {
   const owed = entry.day;
   const methodRaw = entry.paymentMethod || "unpaid";
@@ -62,20 +64,24 @@ function mapEntryFromRow(row) {
   };
 }
 
+/* ---------- MAIN COMPONENT ---------- */
+
 export default function SupportersPage() {
   const [entries, setEntries] = useState([]);
   const [playerPins, setPlayerPins] = useState({});
   const [loading, setLoading] = useState(true);
 
-  const [selectedPlayerId, setSelectedPlayerId] = useState(null); // for supporters table
+  // Top supporters table
+  const [selectedPlayerId, setSelectedPlayerId] = useState(null);
   const [expandedSupporter, setExpandedSupporter] = useState(null);
-
   const [sortConfig, setSortConfig] = useState({
     key: "supporter", // supporter | days
     direction: "asc",
   });
 
-  // For "FOR THUNDER PLAYERS" summary button
+  // "FOR THUNDER PLAYERS" summary
+  const [summarySelectedPlayerId, setSummarySelectedPlayerId] = useState("");
+  const [summaryPin, setSummaryPin] = useState("");
   const [summaryPlayerId, setSummaryPlayerId] = useState(null);
 
   useEffect(() => {
@@ -99,7 +105,11 @@ export default function SupportersPage() {
 
         const pinMap = {};
         (pinsRes.data || []).forEach((row) => {
-          pinMap[row.player_id] = row.pin || "";
+          // store exactly as string, including leading zeros
+          pinMap[row.player_id] =
+            row.pin === null || row.pin === undefined
+              ? ""
+              : String(row.pin).trim();
         });
         setPlayerPins(pinMap);
       } catch (err) {
@@ -113,7 +123,7 @@ export default function SupportersPage() {
     })();
   }, []);
 
-  /* ---------- COMMON DERIVED DATA ---------- */
+  /* ---------- SUPPORTERS TABLE DERIVED DATA ---------- */
 
   const selectedPlayer =
     PLAYERS.find((p) => p.id === selectedPlayerId) || null;
@@ -147,7 +157,6 @@ export default function SupportersPage() {
 
   let supporterRows = Array.from(supporterMap.values());
 
-  // Sort supporters (by name or number of dates)
   supporterRows.sort((a, b) => {
     const dir = sortConfig.direction === "asc" ? 1 : -1;
     switch (sortConfig.key) {
@@ -194,7 +203,7 @@ export default function SupportersPage() {
     const playerPin = (playerPins[selectedPlayer.id] || "").trim();
 
     const phoneMatch = row.dates.some((d) =>
-      (d.phone || "").endsWith(code)
+      (d.phone || "").trim().endsWith(code)
     );
 
     if (code && (code === playerPin || phoneMatch)) {
@@ -208,33 +217,7 @@ export default function SupportersPage() {
     }
   };
 
-  /* ---------- PLAYER SUMMARY (FOR THUNDER PLAYERS BUTTON) ---------- */
-
-  const handlePlayerSummaryButton = () => {
-    const entered = window.prompt(
-      "FOR THUNDER PLAYERS: enter your 4-digit player PIN to view your personal fundraising summary."
-    );
-    if (entered == null) return;
-    const code = entered.trim();
-
-    if (!code) {
-      alert("Please enter a 4-digit PIN.");
-      return;
-    }
-
-    // Find which player this PIN belongs to
-    const match = Object.entries(playerPins).find(
-      ([playerId, pin]) => (pin || "").trim() === code
-    );
-
-    if (!match) {
-      alert("No player found with that PIN. Check with your coach.");
-      return;
-    }
-
-    const [playerId] = match;
-    setSummaryPlayerId(playerId);
-  };
+  /* ---------- FOR THUNDER PLAYERS SUMMARY ---------- */
 
   const summaryPlayer =
     PLAYERS.find((p) => p.id === summaryPlayerId) || null;
@@ -245,6 +228,34 @@ export default function SupportersPage() {
 
   const summaryDays = summaryEntries.length;
   const summarySumDates = summaryEntries.reduce((sum, e) => sum + e.day, 0);
+
+  const handlePlayerSummarySubmit = () => {
+    if (!summarySelectedPlayerId) {
+      alert("Please select your player name first.");
+      return;
+    }
+    const entered = summaryPin.trim();
+    if (!entered) {
+      alert("Please enter your 4-digit player PIN.");
+      return;
+    }
+
+    const expectedPin = (playerPins[summarySelectedPlayerId] || "").trim();
+
+    if (!expectedPin) {
+      alert("There is no PIN on file for this player. Check with Coach Justin.");
+      return;
+    }
+
+    if (entered !== expectedPin) {
+      alert("Incorrect PIN for this player. Please try again.");
+      return;
+    }
+
+    setSummaryPlayerId(summarySelectedPlayerId);
+  };
+
+  /* ---------- RENDER ---------- */
 
   return (
     <div className="page supporters-page">
@@ -268,7 +279,7 @@ export default function SupportersPage() {
         </main>
       ) : (
         <main className="supporters-main">
-          {/* TOP: Player supporters table (what you described) */}
+          {/* TOP: Player supporters table */}
           <section className="supporters-player-list">
             <h2>Supporters by Player</h2>
             <div className="player-pill-row">
@@ -391,21 +402,51 @@ export default function SupportersPage() {
             </section>
           )}
 
-          {/* SECOND: FOR THUNDER PLAYERS button + personal summary */}
+          {/* SECOND: FOR THUNDER PLAYERS summary with dropdown + PIN */}
           <section className="supporters-summary-section">
             <h2>For Thunder Players</h2>
             <p>
               Players can view their personal fundraising summary (total dates
-              sold and sum of date numbers). You&apos;ll need your 4-digit
-              player PIN from Coach Justin.
+              sold and sum of date numbers). Select your name and enter your
+              4-digit player PIN from Coach Justin.
             </p>
-            <button
-              type="button"
-              className="admin-toggle"
-              onClick={handlePlayerSummaryButton}
-            >
-              FOR THUNDER PLAYERS – View My Summary
-            </button>
+
+            <div className="player-summary-controls">
+              <label>
+                Player
+                <select
+                  value={summarySelectedPlayerId}
+                  onChange={(e) => setSummarySelectedPlayerId(e.target.value)}
+                >
+                  <option value="">Select your name…</option>
+                  {PLAYERS.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      #{p.number} {p.firstName} {p.lastName}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label>
+                4-digit PIN
+                <input
+                  type="password"
+                  maxLength={4}
+                  value={summaryPin}
+                  onChange={(e) =>
+                    setSummaryPin(e.target.value.replace(/\D/g, "").slice(0, 4))
+                  }
+                />
+              </label>
+
+              <button
+                type="button"
+                className="admin-toggle"
+                onClick={handlePlayerSummarySubmit}
+              >
+                View My Summary
+              </button>
+            </div>
 
             {summaryPlayer && (
               <div className="supporters-summary">
