@@ -76,6 +76,14 @@ export default function SupportersPage() {
   const [summaryPinError, setSummaryPinError] = useState("");
   const [summaryUnlocked, setSummaryUnlocked] = useState(false);
 
+  // Sorting for Thunder-player supporter summary table
+  const [summarySortKey, setSummarySortKey] = useState("supporter");
+  const [summarySortDir, setSummarySortDir] = useState("asc");
+
+  // Sorting for Thunder-player entry-level table
+  const [detailSortKey, setDetailSortKey] = useState("date"); // "date" | "supporter" | "status"
+  const [detailSortDir, setDetailSortDir] = useState("asc");
+
   useEffect(() => {
     loadSupportersData();
   }, []);
@@ -257,9 +265,6 @@ export default function SupportersPage() {
     return rows;
   }, [entriesForSummaryPlayer]);
 
-  const [summarySortKey, setSummarySortKey] = useState("supporter");
-  const [summarySortDir, setSummarySortDir] = useState("asc");
-
   const sortedSummaryRows = useMemo(() => {
     const rows = [...summaryRows];
     const dir = summarySortDir === "asc" ? 1 : -1;
@@ -285,6 +290,60 @@ export default function SupportersPage() {
         return prevKey;
       }
       setSummarySortDir("asc");
+      return key;
+    });
+  };
+
+  // Entry-level table for Thunder players
+  const labeledEntriesForSummaryPlayer = useMemo(() => {
+    return entriesForSummaryPlayer.map((e) => {
+      const meta = getPaymentMeta(e);
+      let status = "Unpaid";
+      if (meta.isFullyPaid) status = "Paid";
+      else if (meta.isPaid) status = "Partially paid";
+
+      const dateObj = new Date(e.year, e.month - 1, e.day);
+      const dateLabel = `${MONTH_NAMES[e.month - 1]} ${e.day}, ${e.year}`;
+      return { entry: e, meta, status, dateObj, dateLabel };
+    });
+  }, [entriesForSummaryPlayer]);
+
+  const sortedDetailEntries = useMemo(() => {
+    const rows = [...labeledEntriesForSummaryPlayer];
+    const dir = detailSortDir === "asc" ? 1 : -1;
+    rows.sort((a, b) => {
+      switch (detailSortKey) {
+        case "supporter": {
+          const sa = (a.entry.supporterName || "").toLowerCase();
+          const sb = (b.entry.supporterName || "").toLowerCase();
+          if (sa < sb) return -1 * dir;
+          if (sa > sb) return 1 * dir;
+          return 0;
+        }
+        case "status": {
+          const sa = a.status.toLowerCase();
+          const sb = b.status.toLowerCase();
+          if (sa < sb) return -1 * dir;
+          if (sa > sb) return 1 * dir;
+          return 0;
+        }
+        case "date":
+        default:
+          if (a.dateObj < b.dateObj) return -1 * dir;
+          if (a.dateObj > b.dateObj) return 1 * dir;
+          return 0;
+      }
+    });
+    return rows;
+  }, [labeledEntriesForSummaryPlayer, detailSortKey, detailSortDir]);
+
+  const toggleDetailSort = (key) => {
+    setDetailSortKey((prevKey) => {
+      if (prevKey === key) {
+        setDetailSortDir((prevDir) => (prevDir === "asc" ? "desc" : "asc"));
+        return prevKey;
+      }
+      setDetailSortDir("asc");
       return key;
     });
   };
@@ -485,8 +544,7 @@ export default function SupportersPage() {
                 <strong>Supporter:</strong> {selectedSupporterName}
               </p>
               <p className="small">
-                Enter the 4-digit{" "}
-                <strong>player PIN</strong> or the{" "}
+                Enter the 4-digit <strong>player PIN</strong> or the{" "}
                 <strong>last 4 digits</strong> of the supporter&apos;s phone
                 number to unlock details (dates &amp; payment status).
               </p>
@@ -521,6 +579,7 @@ export default function SupportersPage() {
                           <th>Date</th>
                           <th>Day #</th>
                           <th>Paid?</th>
+                          <th>Phone</th>
                           <th>Note</th>
                         </tr>
                       </thead>
@@ -540,6 +599,7 @@ export default function SupportersPage() {
                               </td>
                               <td>{e.day}</td>
                               <td>{paidLabel}</td>
+                              <td>{e.phone}</td>
                               <td>{e.note}</td>
                             </tr>
                           );
@@ -582,7 +642,8 @@ export default function SupportersPage() {
         <p>
           Thunder players can see a summary of their fundraising here. Select
           your name, enter your 4-digit player PIN, and you&apos;ll see totals
-          by supporter.
+          by supporter, plus a detailed list of every date that&apos;s been
+          purchased for you.
         </p>
 
         <div
@@ -640,64 +701,129 @@ export default function SupportersPage() {
           entriesForSummaryPlayer.length === 0 ? (
             <p>No dates have been purchased yet for this player.</p>
           ) : (
-            <div className="admin-table-wrapper">
-              <table className="admin-table">
-                <thead>
-                  <tr>
-                    <th
-                      className="sortable-col"
-                      onClick={() => toggleSummarySort("supporter")}
-                    >
-                      Supporter
-                      {summarySortKey === "supporter"
-                        ? summarySortDir === "asc"
-                          ? " ▲"
-                          : " ▼"
-                        : ""}
-                    </th>
-                    <th
-                      className="sortable-col"
-                      onClick={() => toggleSummarySort("days")}
-                    >
-                      Days sponsored
-                      {summarySortKey === "days"
-                        ? summarySortDir === "asc"
-                          ? " ▲"
-                          : " ▼"
-                        : ""}
-                    </th>
-                    <th
-                      className="sortable-col"
-                      onClick={() => toggleSummarySort("sum")}
-                    >
-                      Sum of date numbers
-                      {summarySortKey === "sum"
-                        ? summarySortDir === "asc"
-                          ? " ▲"
-                          : " ▼"
-                        : ""}
-                    </th>
-                    <th>Paid?</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sortedSummaryRows.map((row) => {
-                    let status = "Unpaid";
-                    if (row.anyPaid && row.anyUnpaid) status = "Partially paid";
-                    else if (row.anyPaid && !row.anyUnpaid) status = "Paid";
+            <>
+              {/* SUMMARY BY SUPPORTER */}
+              <h3>Supporter Summary</h3>
+              <div className="admin-table-wrapper">
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th
+                        className="sortable-col"
+                        onClick={() => toggleSummarySort("supporter")}
+                      >
+                        Supporter
+                        {summarySortKey === "supporter"
+                          ? summarySortDir === "asc"
+                            ? " ▲"
+                            : " ▼"
+                          : ""}
+                      </th>
+                      <th
+                        className="sortable-col"
+                        onClick={() => toggleSummarySort("days")}
+                      >
+                        Days sponsored
+                        {summarySortKey === "days"
+                          ? summarySortDir === "asc"
+                            ? " ▲"
+                            : " ▼"
+                          : ""}
+                      </th>
+                      <th
+                        className="sortable-col"
+                        onClick={() => toggleSummarySort("sum")}
+                      >
+                        Sum of date numbers
+                        {summarySortKey === "sum"
+                          ? summarySortDir === "asc"
+                            ? " ▲"
+                            : " ▼"
+                          : ""}
+                      </th>
+                      <th>Paid?</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sortedSummaryRows.map((row) => {
+                      let status = "Unpaid";
+                      if (row.anyPaid && row.anyUnpaid) status = "Partially paid";
+                      else if (row.anyPaid && !row.anyUnpaid) status = "Paid";
 
-                    return (
-                      <tr key={row.supporterName}>
-                        <td>{row.supporterName}</td>
-                        <td>{row.days}</td>
-                        <td>{row.sumOfDates}</td>
+                      return (
+                        <tr key={row.supporterName}>
+                          <td>{row.supporterName}</td>
+                          <td>{row.days}</td>
+                          <td>{row.sumOfDates}</td>
+                          <td>{status}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* ENTRY-LEVEL TABLE */}
+              <h3 style={{ marginTop: "1.5rem" }}>All Entries for You</h3>
+              <p className="small">
+                This table shows every date purchased for you, including notes,
+                phone contact, and payment status.
+              </p>
+              <div className="admin-table-wrapper">
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th
+                        className="sortable-col"
+                        onClick={() => toggleDetailSort("date")}
+                      >
+                        Date
+                        {detailSortKey === "date"
+                          ? detailSortDir === "asc"
+                            ? " ▲"
+                            : " ▼"
+                          : ""}
+                      </th>
+                      <th
+                        className="sortable-col"
+                        onClick={() => toggleDetailSort("supporter")}
+                      >
+                        Supporter
+                        {detailSortKey === "supporter"
+                          ? detailSortDir === "asc"
+                            ? " ▲"
+                            : " ▼"
+                          : ""}
+                      </th>
+                      <th>Note</th>
+                      <th>Phone</th>
+                      <th
+                        className="sortable-col"
+                        onClick={() => toggleDetailSort("status")}
+                      >
+                        Payment status
+                        {detailSortKey === "status"
+                          ? detailSortDir === "asc"
+                            ? " ▲"
+                            : " ▼"
+                          : ""}
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sortedDetailEntries.map(({ entry, status, dateLabel }) => (
+                      <tr key={entry.id}>
+                        <td>{dateLabel}</td>
+                        <td>{entry.supporterName}</td>
+                        <td>{entry.note}</td>
+                        <td>{entry.phone}</td>
                         <td>{status}</td>
                       </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )
         ) : (
           <p className="small">
