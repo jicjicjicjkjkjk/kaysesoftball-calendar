@@ -857,7 +857,7 @@ function SupporterFormModal({ dayInfo, initialValues, onClose, onSubmit }) {
               required
             >
               <option value="">Select a player…</option>
-              {PLAYERS.map((p) => (
+              {SORTED_PLAYERS.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.firstName} {p.lastName} #{p.number}
                 </option>
@@ -1234,7 +1234,7 @@ function AdminPanel({
             </tr>
           </thead>
           <tbody>
-            {PLAYERS.map((p) => (
+            {SORTED_PLAYERS.map((p) => (
               <tr key={p.id}>
                 <td>{p.number}</td>
                 <td>
@@ -1506,7 +1506,7 @@ function EditEntryModal({ entry, onClose, onSave }) {
               required
             >
               <option value="">Select a player…</option>
-              {PLAYERS.map((p) => (
+              {SORTED_PLAYERS.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.firstName} {p.lastName} #{p.number}
                 </option>
