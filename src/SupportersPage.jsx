@@ -105,7 +105,6 @@ export default function SupportersPage() {
 
         const pinMap = {};
         (pinsRes.data || []).forEach((row) => {
-          // store exactly as string, including leading zeros
           pinMap[row.player_id] =
             row.pin === null || row.pin === undefined
               ? ""
@@ -309,6 +308,10 @@ export default function SupportersPage() {
                 Supporters for {selectedPlayer.firstName}{" "}
                 {selectedPlayer.lastName}
               </h3>
+              <p className="supporter-note">
+                <strong>Tip:</strong> Click a supporter name below to unlock
+                their detailed dates (requires PIN).
+              </p>
               {supporterRows.length === 0 ? (
                 <p>No dates have been sold yet for this player.</p>
               ) : (
@@ -328,20 +331,34 @@ export default function SupportersPage() {
                         >
                           Number of dates{sortIndicator("days")}
                         </th>
-                        <th>Payment status (overall)</th>
                       </tr>
                     </thead>
                     <tbody>
                       {supporterRows.map((row) => {
-                        let paymentSummary = "Unpaid";
-                        if (row.hasPaid && row.hasUnpaid) {
-                          paymentSummary = "Some dates paid, some unpaid";
-                        } else if (row.hasPaid) {
-                          paymentSummary = "All paid";
-                        }
-
                         const isExpanded =
                           expandedSupporter === row.supporterName;
+
+                        // Build summary for this supporter
+                        let totalOwed = 0;
+                        let totalPaid = 0;
+                        let anyPaid = false;
+                        let anyUnpaid = false;
+
+                        row.dates.forEach((d) => {
+                          const meta = getPaymentMeta(d);
+                          totalOwed += meta.owed;
+                          totalPaid += meta.amount;
+                          if (meta.isPaid) anyPaid = true;
+                          if (!meta.isPaid) anyUnpaid = true;
+                        });
+
+                        const remaining = Math.max(totalOwed - totalPaid, 0);
+                        let overallStatus = "Unpaid";
+                        if (anyPaid && anyUnpaid) {
+                          overallStatus = "Some dates paid, some unpaid";
+                        } else if (anyPaid && !anyUnpaid && remaining <= 0) {
+                          overallStatus = "All paid";
+                        }
 
                         return (
                           <React.Fragment key={row.supporterName}>
@@ -349,13 +366,16 @@ export default function SupportersPage() {
                               className="clickable-row"
                               onClick={() => handleSupporterClick(row)}
                             >
-                              <td>{row.supporterName}</td>
+                              <td>
+                                <span className="supporter-name-click">
+                                  ▶ {row.supporterName}
+                                </span>
+                              </td>
                               <td>{row.totalDays}</td>
-                              <td>{paymentSummary}</td>
                             </tr>
                             {isExpanded && (
                               <tr>
-                                <td colSpan={3}>
+                                <td colSpan={2}>
                                   <div className="supporter-detail">
                                     <strong>
                                       Detailed dates for {row.supporterName}
@@ -384,6 +404,29 @@ export default function SupportersPage() {
                                         })}
                                       </tbody>
                                     </table>
+
+                                    <div className="supporter-summary">
+                                      <p>
+                                        <strong>Total dates:</strong>{" "}
+                                        {row.totalDays}
+                                      </p>
+                                      <p>
+                                        <strong>Sum of date numbers:</strong> $
+                                        {totalOwed}
+                                      </p>
+                                      <p>
+                                        <strong>Total paid:</strong> $
+                                        {totalPaid}
+                                      </p>
+                                      <p>
+                                        <strong>Remaining balance:</strong> $
+                                        {remaining}
+                                      </p>
+                                      <p>
+                                        <strong>Overall status:</strong>{" "}
+                                        {overallStatus}
+                                      </p>
+                                    </div>
                                   </div>
                                 </td>
                               </tr>
