@@ -257,7 +257,7 @@ export default function App() {
     setShowAdmin((prev) => !prev);
   };
 
-  const handleSetRaffleWinner = async (year, month, dayOrNull) => {
+ const handleSetRaffleWinner = async (year, month, dayOrNull) => {
   const winningDay = dayOrNull || null;
   const key = `${year}-${month}`;
 
