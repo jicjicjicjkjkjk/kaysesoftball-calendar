@@ -282,7 +282,7 @@ export default function SupportersPage() {
           <section className="supporters-player-list">
             <h2>Supporters by Player</h2>
             <div className="player-pill-row">
-              {PLAYERS.map((p) => (
+              {SORTED_PLAYERS.map((p) => (
                 <button
                   key={p.id}
                   type="button"
@@ -462,7 +462,7 @@ export default function SupportersPage() {
                   onChange={(e) => setSummarySelectedPlayerId(e.target.value)}
                 >
                   <option value="">Select your name…</option>
-                  {PLAYERS.map((p) => (
+                  {SORTED_PLAYERS.map((p) => (
                     <option key={p.id} value={p.id}>
                       #{p.number} {p.firstName} {p.lastName}
                     </option>
