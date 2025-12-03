@@ -364,6 +364,14 @@ export default function SupportersPage() {
     }
   };
 
+  const handleChangeSelectedPlayer = (playerId) => {
+    setSelectedPlayerId(playerId);
+    setSelectedSupporterName("");
+    setSupporterUnlocked(false);
+    setSupporterPinInput("");
+    setSupporterPinError("");
+  };
+
   if (isLoading) {
     return (
       <div className="page">
@@ -396,14 +404,11 @@ export default function SupportersPage() {
                 dates on the calendar fundraiser. This page lets you:
               </p>
               <ul>
-                <li>See who has supported each player</li>
                 <li>
-                  Unlock your own detailed view using a PIN (player PIN or last
-                  4 digits of your phone)
+                  Click on your name and enter the last 4 digits of your phone
+                  (or player can use their pin) to view additional details
                 </li>
-                <li>
-                  For Thunder players, check your overall fundraising totals
-                </li>
+                <li>For Thunder players, check overall fundraising totals</li>
               </ul>
             </div>
           </div>
@@ -426,7 +431,7 @@ export default function SupportersPage() {
         </div>
       </header>
 
-      {/* MAIN 3-COLUMN LAYOUT */}
+      {/* MAIN 2-COLUMN LAYOUT */}
       <main
         className="supporters-layout"
         style={{
@@ -437,65 +442,46 @@ export default function SupportersPage() {
           padding: "1.5rem",
         }}
       >
-        {/* LEFT: Player list, vertical */}
-        <section
-          className="supporters-column supporters-players"
-          style={{
-            flex: "0 0 230px",
-            minWidth: "200px",
-            maxWidth: "260px",
-          }}
-        >
-          <h2>Choose a Player</h2>
-          <p className="small">
-            Tap a player to see a list of supporters for that player.
-          </p>
-          <ul className="supporters-player-list">
-            {SORTED_PLAYERS.map((p) => (
-              <li key={p.id}>
-                <button
-                  type="button"
-                  className={
-                    p.id === selectedPlayerId
-                      ? "pill-button pill-button-active"
-                      : "pill-button"
-                  }
-                  onClick={() => {
-                    setSelectedPlayerId(p.id);
-                    setSelectedSupporterName("");
-                    setSupporterUnlocked(false);
-                    setSupporterPinInput("");
-                    setSupporterPinError("");
-                  }}
-                >
-                  {p.firstName} {p.lastName} #{p.number}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </section>
-
-        {/* MIDDLE: Supporter list for selected player */}
+        {/* LEFT: Supporter list for selected player */}
         <section
           className="supporters-column supporters-list"
           style={{
-            flex: "1 1 280px",
+            flex: "1 1 320px",
             minWidth: "260px",
           }}
         >
-          <h2>
-            Supporters for{" "}
-            {selectedPlayer
-              ? `${selectedPlayer.firstName} ${selectedPlayer.lastName}`
-              : "player"}
-          </h2>
+          <h2>Supporters</h2>
+          <p className="small">
+            Choose a player, then click on your name to unlock your details.
+          </p>
+
+          <div
+            style={{
+              marginBottom: "0.75rem",
+            }}
+          >
+            <label>
+              Player:&nbsp;
+              <select
+                value={selectedPlayerId}
+                onChange={(e) => handleChangeSelectedPlayer(e.target.value)}
+              >
+                {SORTED_PLAYERS.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.firstName} {p.lastName} #{p.number}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
           {supporterGroups.length === 0 ? (
             <p>No dates have been purchased for this player yet.</p>
           ) : (
             <>
               <p className="small">
-                Tap a supporter&apos;s name to unlock their detailed view with a
-                PIN.
+                Click a supporter&apos;s name on the left to unlock their
+                detailed view with a PIN.
               </p>
               <div className="admin-table-wrapper">
                 <table className="admin-table">
@@ -537,7 +523,7 @@ export default function SupportersPage() {
         >
           <h2>Supporter Details</h2>
           {!selectedSupporterName ? (
-            <p>Select a supporter in the middle list to view details.</p>
+            <p>Select a supporter in the left-hand list to view details.</p>
           ) : (
             <>
               <p>
