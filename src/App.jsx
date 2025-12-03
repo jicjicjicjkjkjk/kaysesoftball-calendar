@@ -389,10 +389,10 @@ const handleSetRaffleWinner = async (year, month, dayOrNull) => {
               <p>
                 As a <strong>supporter</strong>, you are buying{" "}
                 <strong>raffle tickets</strong> by choosing calendar dates. The
-                number on each date is the number of tickets you receive for
-                that month&apos;s $100 drawing. We also record which player
-                you&apos;re supporting so our players and coaches know who to
-                thank – it doesn&apos;t change your odds in the drawing.
+                number on each date is the number of tickets you purchase for $1 each for
+                that month&apos;s $100 drawing. So the 20th of the month = 20 tickets = $20.
+                We also record which player you&apos;re supporting so our players 
+                and coaches know who to thank!
               </p>
 
               <div className="venmo-zelle">
