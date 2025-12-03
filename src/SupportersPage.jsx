@@ -405,9 +405,10 @@ export default function SupportersPage() {
               </p>
               <ul>
                 <li>
-                  Click on your name and enter the last 4 digits of your phone
-                  (or player can use their pin) to view additional details
-                </li>
+  View additional details including dates supported by selecting on your
+  name and entering the last 4 digits of your phone (or players can
+  enter their 4-digit player pin)
+</li>
                 <li>For Thunder players, check overall fundraising totals</li>
               </ul>
             </div>
@@ -492,10 +493,9 @@ export default function SupportersPage() {
                 <strong>Supporter:</strong> {selectedSupporterName}
               </p>
               <p className="small">
-                Enter the 4-digit <strong>player PIN</strong> (for any player
-                you supported) or the <strong>last 4 digits</strong> of your
-                phone number to unlock your dates &amp; payment status.
-              </p>
+  Enter the last 4 digits of your phone number (or players can enter
+  their 4-digit player pin) to unlock your dates and payment status.
+</p>
               <div className="pin-input-row">
                 <input
                   type="password"
