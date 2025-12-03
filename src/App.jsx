@@ -464,7 +464,7 @@ const handleSetRaffleWinner = async (year, month, dayOrNull) => {
           Each supporter chooses one or more available dates on the calendar.
           The number on the date is the number of raffle tickets you receive for
           that month&apos;s drawing. For example, if you claim{" "}
-          <strong>January 12</strong>, you get{" "}
+          <strong>January 12</strong>, you pay $12 and get{" "}
           <strong>12 raffle tickets</strong> for the January drawing.
         </p>
 
