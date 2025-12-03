@@ -54,15 +54,20 @@ function getPaymentMeta(entry) {
   return { owed, amount, method, isPaid, isFullyPaid };
 }
 
+// Helper to sort by first name (assumes "First Last")
+function getFirstNameFromFull(name) {
+  if (!name) return "Unknown";
+  const trimmed = name.trim();
+  if (!trimmed) return "Unknown";
+  return trimmed.split(/\s+/)[0];
+}
+
 export default function SupportersPage() {
   const [entries, setEntries] = useState([]);
   const [playerPins, setPlayerPins] = useState({});
   const [isLoading, setIsLoading] = useState(true);
 
-  // Public supporters view
-  const [selectedPlayerId, setSelectedPlayerId] = useState(
-    SORTED_PLAYERS[0]?.id || ""
-  );
+  // Public supporters view (no player selection)
   const [selectedSupporterName, setSelectedSupporterName] = useState("");
   const [supporterPinInput, setSupporterPinInput] = useState("");
   const [supporterPinError, setSupporterPinError] = useState("");
@@ -124,37 +129,31 @@ export default function SupportersPage() {
 
   // ---------- Derived data for the public supporters view ----------
 
-  const selectedPlayer = useMemo(
-    () => SORTED_PLAYERS.find((p) => p.id === selectedPlayerId) || null,
-    [selectedPlayerId]
-  );
-
-  const entriesForSelectedPlayer = useMemo(
-    () => entries.filter((e) => e.playerId === selectedPlayerId),
-    [entries, selectedPlayerId]
-  );
-
-  // Group by supporter for the selected player
+  // Group by supporter across ALL entries
   const supporterGroups = useMemo(() => {
     const map = new Map();
-    for (const e of entriesForSelectedPlayer) {
+    for (const e of entries) {
       const key = e.supporterName || "Unknown Supporter";
       if (!map.has(key)) {
         map.set(key, { supporterName: key, count: 0 });
       }
       map.get(key).count += 1;
     }
-    return Array.from(map.values()).sort((a, b) =>
-      a.supporterName.localeCompare(b.supporterName)
+    const groups = Array.from(map.values());
+    groups.sort((a, b) =>
+      getFirstNameFromFull(a.supporterName).localeCompare(
+        getFirstNameFromFull(b.supporterName)
+      )
     );
-  }, [entriesForSelectedPlayer]);
+    return groups;
+  }, [entries]);
 
   const supporterEntries = useMemo(() => {
     if (!selectedSupporterName) return [];
-    return entriesForSelectedPlayer.filter(
+    return entries.filter(
       (e) => (e.supporterName || "Unknown Supporter") === selectedSupporterName
     );
-  }, [entriesForSelectedPlayer, selectedSupporterName]);
+  }, [entries, selectedSupporterName]);
 
   // Summary for unlocked supporter
   const supporterSummary = useMemo(() => {
@@ -199,12 +198,21 @@ export default function SupportersPage() {
       return;
     }
 
-    const playerPin = playerPins[selectedPlayerId] || "";
+    let valid = false;
 
-    // Valid if matches player PIN...
-    let valid = playerPin && pin === playerPin;
+    // 1) Valid if matches any player PIN for any player this supporter has supported
+    const uniquePlayerIds = Array.from(
+      new Set(supporterEntries.map((e) => e.playerId).filter(Boolean))
+    );
+    for (const pid of uniquePlayerIds) {
+      const playerPin = playerPins[pid] || "";
+      if (playerPin && pin === playerPin) {
+        valid = true;
+        break;
+      }
+    }
 
-    // ...or matches last 4 of any phone on these entries
+    // 2) Or matches last 4 of any phone on these entries
     if (!valid) {
       valid = supporterEntries.some((e) => {
         const digits = (e.phone || "").replace(/\D/g, "");
@@ -364,14 +372,6 @@ export default function SupportersPage() {
     }
   };
 
-  const handleChangeSelectedPlayer = (playerId) => {
-    setSelectedPlayerId(playerId);
-    setSelectedSupporterName("");
-    setSupporterUnlocked(false);
-    setSupporterPinInput("");
-    setSupporterPinError("");
-  };
-
   if (isLoading) {
     return (
       <div className="page">
@@ -442,74 +442,36 @@ export default function SupportersPage() {
           padding: "1.5rem",
         }}
       >
-        {/* LEFT: Supporter list for selected player */}
+        {/* LEFT: Global supporter list */}
         <section
           className="supporters-column supporters-list"
           style={{
-            flex: "1 1 320px",
-            minWidth: "260px",
+            flex: "0 0 260px",
+            minWidth: "220px",
+            maxWidth: "280px",
           }}
         >
           <h2>Supporters</h2>
           <p className="small">
-            Choose a player, then click on your name to unlock your details.
+            Scroll the list and click on your name to unlock your details.
           </p>
 
-          <div
-            style={{
-              marginBottom: "0.75rem",
-            }}
-          >
-            <label>
-              Player:&nbsp;
-              <select
-                value={selectedPlayerId}
-                onChange={(e) => handleChangeSelectedPlayer(e.target.value)}
-              >
-                {SORTED_PLAYERS.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.firstName} {p.lastName} #{p.number}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-
           {supporterGroups.length === 0 ? (
-            <p>No dates have been purchased for this player yet.</p>
+            <p>No supporters have been recorded yet.</p>
           ) : (
-            <>
-              <p className="small">
-                Click a supporter&apos;s name on the left to unlock their
-                detailed view with a PIN.
-              </p>
-              <div className="admin-table-wrapper">
-                <table className="admin-table">
-                  <thead>
-                    <tr>
-                      <th>Supporter</th>
-                      <th># of dates</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {supporterGroups.map((s) => (
-                      <tr key={s.supporterName}>
-                        <td>
-                          <button
-                            type="button"
-                            className="link-button"
-                            onClick={() => handleSelectSupporter(s.supporterName)}
-                          >
-                            {s.supporterName}
-                          </button>
-                        </td>
-                        <td>{s.count}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </>
+            <ul className="supporters-name-list">
+              {supporterGroups.map((s) => (
+                <li key={s.supporterName}>
+                  <button
+                    type="button"
+                    className="link-button"
+                    onClick={() => handleSelectSupporter(s.supporterName)}
+                  >
+                    {s.supporterName}
+                  </button>
+                </li>
+              ))}
+            </ul>
           )}
         </section>
 
@@ -523,16 +485,16 @@ export default function SupportersPage() {
         >
           <h2>Supporter Details</h2>
           {!selectedSupporterName ? (
-            <p>Select a supporter in the left-hand list to view details.</p>
+            <p>Select your name in the supporters list to view details.</p>
           ) : (
             <>
               <p>
                 <strong>Supporter:</strong> {selectedSupporterName}
               </p>
               <p className="small">
-                Enter the 4-digit <strong>player PIN</strong> or the{" "}
-                <strong>last 4 digits</strong> of the supporter&apos;s phone
-                number to unlock details (dates &amp; payment status).
+                Enter the 4-digit <strong>player PIN</strong> (for any player
+                you supported) or the <strong>last 4 digits</strong> of your
+                phone number to unlock your dates &amp; payment status.
               </p>
               <div className="pin-input-row">
                 <input
